@@ -8,6 +8,7 @@
 #include <awesome/interface.h>
 #include <awesome/displaydriver.h>
 #include <awesome/display.h>
+#include <awesome/client.h>
 #include <awesome/compositor.h>
 
 #include <geek/core-thread.h>
@@ -24,6 +25,9 @@ class DisplayServer
     std::vector<DisplayDriver*> m_displayDrivers;
     std::vector<Display*> m_displays;
     Compositor* m_compositor;
+
+    std::vector<Client*> m_clients;
+
  public:
  private:
 
@@ -38,6 +42,14 @@ class DisplayServer
     void main();
 
     void addDisplay(Display* display);
+
+    const std::vector<Display*> &getDisplays() const
+    {
+        return m_displays;
+    }
+
+    void addClient(Client* client);
+    void removeClient(Client* client);
 
     Compositor* getCompositor() const
     {

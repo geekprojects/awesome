@@ -32,7 +32,10 @@ bool Display::draw(Window* window, Geek::Rect drawRect)
 
 void Display::endDraw()
 {
-    return false;
+}
+
+void Display::update(Window* window, Geek::Gfx::Surface* surface)
+{
 }
 
 

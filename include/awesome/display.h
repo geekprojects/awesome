@@ -7,6 +7,7 @@
 
 #include <geek/core-logger.h>
 #include <geek/core-maths.h>
+#include <geek/gfx-surface.h>
 #include <frontier/utils.h>
 
 namespace Awesome
@@ -32,6 +33,8 @@ class Display : public Geek::Logger
  public:
     Display(std::string name, DisplayDriver* driver);
     virtual ~Display();
+
+    virtual void update(Window* window, Geek::Gfx::Surface* surface);
 
     virtual bool init();
     virtual bool startDraw();

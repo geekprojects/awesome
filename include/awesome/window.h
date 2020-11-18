@@ -1,24 +1,48 @@
 #ifndef AWESOME_WINDOW_H
 #define AWESOME_WINDOW_H
 
+#include <awesome/client.h>
+
 #include <geek/core-logger.h>
 #include <geek/core-maths.h>
+#include <geek/gfx-surface.h>
+
+#include <map>
 
 namespace Awesome
 {
 
+struct Display;
 struct WindowDisplayData;
 
 class Window : public Geek::Logger
 {
  private:
+    int m_id;
+    Client* m_client;
+
     Geek::Rect m_rect;
 
-    WindowDisplayData* m_windowDisplayData;
+    std::map<Display*, WindowDisplayData*> m_windowDisplayData;
 
  public:
-    Window();
+    explicit Window(Client* client);
     ~Window();
+
+    int getId() const
+    {
+        return m_id;
+    }
+
+    void setId(int mId)
+    {
+        m_id = mId;
+    }
+
+    Client* getClient() const
+    {
+        return m_client;
+    }
 
     const Geek::Vector2D getPosition() const
     {
@@ -41,16 +65,22 @@ class Window : public Geek::Logger
         m_rect = mRect;
     }
 
-    WindowDisplayData* getWindowDisplayData() const
+    WindowDisplayData* getWindowDisplayData(Display* display) const
     {
-        return m_windowDisplayData;
+        auto it = m_windowDisplayData.find(display);
+        if (it != m_windowDisplayData.end())
+        {
+            return it->second;
+        }
+        return nullptr;
     }
 
-    void setWindowDisplayData(WindowDisplayData* mWindowDisplayData)
+    void setWindowDisplayData(Display* display, WindowDisplayData* mWindowDisplayData)
     {
-        m_windowDisplayData = mWindowDisplayData;
+        m_windowDisplayData.insert_or_assign(display, mWindowDisplayData);
     }
 
+    void update(Geek::Gfx::Surface* surface);
 };
 
 }

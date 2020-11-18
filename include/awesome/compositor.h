@@ -18,6 +18,7 @@ class Compositor : public Geek::Logger
  private:
     DisplayServer* m_displayServer;
     std::vector<Window*> m_windows;
+    int m_windowIdx = 0;
 
  public:
     Compositor(DisplayServer* displayServer);
@@ -31,7 +32,12 @@ class Compositor : public Geek::Logger
         return m_windows;
     }
 
+    Window* findWindow(int id);
+
     void draw(Display* display);
+    void update(Window* window);
+
+    void removeWindow(Window* window);
 };
 
 }

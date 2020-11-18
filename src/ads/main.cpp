@@ -10,9 +10,15 @@ int main(int argc, char** argv)
 
     displayServer->init();
 
-    Window* window = new Window();
-    window->setRect(Rect(100, 100, 200, 200));
-    displayServer->getCompositor()->addWindow(window);
+    /*
+    Window* window1 = new Window();
+    window1->setRect(Rect(0, 0, 200, 200));
+    displayServer->getCompositor()->addWindow(window1);
+
+    Window* window2 = new Window();
+    window2->setRect(Rect(100, 100, 300, 300));
+    displayServer->getCompositor()->addWindow(window2);
+     */
 
     displayServer->main();
 

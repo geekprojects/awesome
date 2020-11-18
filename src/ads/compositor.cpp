@@ -1,5 +1,5 @@
 
-#include <awesome/compositor.h>
+#include "awesome/compositor.h"
 #include <awesome/displayserver.h>
 
 using namespace Awesome;
@@ -17,7 +17,19 @@ Compositor::~Compositor()
 
 void Compositor::addWindow(Window* window)
 {
+    Rect windowRect = window->getRect();
+
+    window->setId(m_windowIdx++);
     m_windows.push_back(window);
+
+    for (Display* display : m_displayServer->getDisplays())
+    {
+        Rect displayRect = display->getRect();
+        if (displayRect.intersects(windowRect))
+        {
+            window->setWindowDisplayData(display, nullptr);
+        }
+    }
 }
 
 void Compositor::draw(Display* display)
@@ -34,7 +46,6 @@ void Compositor::draw(Display* display)
 
     for (Window* window : m_windows)
     {
-        log(DEBUG, "draw: Window: %p", window);
         Rect windowRect = window->getRect();
         if (!displayRect.intersects(windowRect))
         {
@@ -47,4 +58,34 @@ void Compositor::draw(Display* display)
     }
     display->endDraw();
 }
+
+void Compositor::update(Window* window)
+{
+
+}
+
+void Compositor::removeWindow(Window* window)
+{
+    for (auto it = m_windows.begin(); it != m_windows.end(); it++)
+    {
+        if (*it == window)
+        {
+            m_windows.erase(it);
+            break;
+        }
+    }
+}
+
+Window* Compositor::findWindow(int id)
+{
+    for (Window* window : m_windows)
+    {
+        if (window->getId() == id)
+        {
+            return window;
+        }
+    }
+    return nullptr;
+}
+
 

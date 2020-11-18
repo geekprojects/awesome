@@ -1,0 +1,15 @@
+# libawesome pkg-config source file
+
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+bindir=${prefix}/bin
+
+Name: libawesome
+Description: Awesome Client Library
+Version: 1.0.0
+Requires:
+Conflicts:
+Libs: @PKGCONFIG_LDFLAGS@
+Cflags: @PKGCONFIG_CFLAGS@

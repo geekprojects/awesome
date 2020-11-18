@@ -1,11 +1,14 @@
 
 #include <awesome/window.h>
+#include <awesome/display.h>
 
 using namespace Awesome;
 using namespace Geek;
 
-Window::Window() : Logger("Window")
+Window::Window(Client* client) : Logger("Window")
 {
+    m_client = client;
+
     m_rect.x = 0;
     m_rect.y = 0;
     m_rect.w = 0;
@@ -15,4 +18,12 @@ Window::Window() : Logger("Window")
 Window::~Window()
 {
 
+}
+
+void Window::update(Geek::Gfx::Surface* surface)
+{
+    for (auto it : m_windowDisplayData)
+    {
+        it.first->update(this, surface);
+    }
 }

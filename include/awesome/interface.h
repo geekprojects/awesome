@@ -23,6 +23,11 @@ class Interface : public Geek::Logger
     virtual ~Interface();
 
     virtual bool init();
+
+    DisplayServer* getDisplayServer() const
+    {
+        return m_displayServer;
+    }
 };
 
 }
