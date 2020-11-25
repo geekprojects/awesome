@@ -17,8 +17,9 @@
 
 namespace Awesome
 {
+class DisplayServerDrawThread;
 
-class DisplayServer
+class DisplayServer : Geek::Logger
 {
  private:
     std::vector<Interface*> m_interfaces;
@@ -26,12 +27,15 @@ class DisplayServer
     std::vector<Display*> m_displays;
     Compositor* m_compositor;
 
+    DisplayServerDrawThread* m_drawThread;
+
     std::vector<Client*> m_clients;
 
  public:
  private:
 
     Geek::CondVar* m_messageSignal;
+    Geek::CondVar* m_drawSignal;
     bool m_running = true;
 
  public:
@@ -51,10 +55,33 @@ class DisplayServer
     void addClient(Client* client);
     void removeClient(Client* client);
 
+    bool isRunning() const
+    {
+        return m_running;
+    }
+
     Compositor* getCompositor() const
     {
         return m_compositor;
     }
+
+    Geek::CondVar* getDrawSignal() const
+    {
+        return m_drawSignal;
+    }
+};
+
+class DisplayServerDrawThread : public Geek::Thread
+{
+ private:
+    DisplayServer* m_displayServer;
+
+ public:
+    explicit DisplayServerDrawThread(DisplayServer* displayServer);
+    ~DisplayServerDrawThread();
+
+    bool main() override;
+
 };
 
 }

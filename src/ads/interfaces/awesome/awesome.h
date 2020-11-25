@@ -16,6 +16,7 @@
 #include <event2/bufferevent.h>
 
 #include <map>
+#include <awesome/window.h>
 
 namespace Awesome
 {
@@ -50,12 +51,18 @@ class AwesomeInterface : public Interface
     }
 };
 
+struct SharedMemory
+{
+    void* addr = nullptr;
+    int size = 0;
+};
+
 class AwesomeClient : public Awesome::Client, Geek::Logger
 {
  private:
     bufferevent* m_bufferEvent;
 
-    std::map<int, void*> m_sharedMemory;
+    std::map<std::string, SharedMemory> m_sharedMemory;
 
     void errorCallback(bufferevent *bev, short error);
     void readCallback(struct bufferevent *bev);
@@ -65,13 +72,20 @@ class AwesomeClient : public Awesome::Client, Geek::Logger
     void handleSharedMemoryDetach(ShmDetachRequest* request);
     void handleWindowCreate(WindowCreateRequest* request);
     void handleWindowUpdate(WindowUpdateRequest* request);
+    void handleWindowSetSize(WindowSetSizeRequest* request);
+    void handleEventPoll(EventPollRequest* request);
+    void handleEventWait(EventWaitRequest* request);
 
  public:
     AwesomeClient(AwesomeInterface* awesomeInterface, bufferevent* bev);
     ~AwesomeClient();
 
+    void send(Message* message, int size);
+
     static void errorCallback(bufferevent *bev, short error, void *ctx);
     static void readCallback(struct bufferevent *bev, void *ctx);
+
+    Window* getWindow(int windowId) const;
 };
 
 class AwesomeServerThread : public Geek::Thread, public Geek::Logger

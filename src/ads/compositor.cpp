@@ -88,4 +88,38 @@ Window* Compositor::findWindow(int id)
     return nullptr;
 }
 
+void Compositor::postEvent(Event* event)
+{
+    bool posted = false;
+    switch (event->getCategory())
+    {
+        case AWESOME_EVENT_MOUSE:
+        {
+            Vector2D mousePos(event->mouse.x, event->mouse.y);
+            Window* targetWindow = nullptr;
+            for (Window* window : m_windows)
+            {
+                if (window->getRect().contains(mousePos))
+                {
+                    targetWindow = window;
+                    break;
+                }
+            }
+            if (targetWindow != nullptr)
+            {
+                event->windowId = targetWindow->getId();
+                event->mouse.x -= targetWindow->getRect().x;
+                event->mouse.y -= targetWindow->getRect().y;
+                targetWindow->postEvent(event);
+                posted = true;
+            }
+        } break;
+    }
+
+    if (!posted)
+    {
+        delete event;
+    }
+}
+
 

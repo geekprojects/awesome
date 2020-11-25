@@ -1,31 +1,43 @@
 #ifndef AWESOME_CONNECTION_H
 #define AWESOME_CONNECTION_H
 
-#include <string>
-
 #include <awesome/protocol.h>
 #include <geek/core-logger.h>
+#include <geek/core-thread.h>
+
+#include <string>
+#include <map>
+#include <deque>
 
 namespace Awesome
 {
 
+class Connection;
 class ClientConnection;
+class ConnectionSendThread;
+class ConnectionReceiveThread;
 
 class ClientSharedMemory
 {
  private:
     ClientConnection* m_connection;
-    int m_shmid;
+    std::string m_path;
+    int m_fd;
     int m_size;
     void* m_addr;
 
  public:
-    ClientSharedMemory(ClientConnection* connection, int shmid, int size, void* addr);
+    ClientSharedMemory(ClientConnection* connection, std::string path, int fd, int size, void* addr);
     ~ClientSharedMemory();
 
-    int getShmid() const
+    std::string getPath()
     {
-        return m_shmid;
+        return m_path;
+    }
+
+    int getFD() const
+    {
+        return m_fd;
     }
 
     int getSize() const
@@ -39,26 +51,85 @@ class ClientSharedMemory
     }
 };
 
+struct ConnectionRequest
+{
+    Request* request;
+    int requestSize;
+
+    Response* response;
+    Geek::CondVar* signal;
+};
+
+class ConnectionSendThread : public Geek::Thread, Geek::Logger
+{
+ private:
+    Connection* m_connection;
+    std::deque<ConnectionRequest*> m_requestQueue;
+    Geek::Mutex* m_requestMutex;
+
+    int m_messageId = 0;
+
+    Geek::CondVar* m_requestSignal;
+
+    bool m_running = false;
+
+ public:
+    explicit ConnectionSendThread(Connection* connection);
+    ~ConnectionSendThread() override;
+
+    bool main() override;
+
+    ConnectionRequest* send(Request* request, int size);
+};
+
+class ConnectionReceiveThread : public Geek::Thread, Geek::Logger
+{
+ private:
+    Connection* m_connection;
+    bool m_running = false;
+
+ public:
+    explicit ConnectionReceiveThread(Connection* connection);
+    ~ConnectionReceiveThread();
+
+    bool main() override;
+};
+
 class Connection : public Geek::Logger
 {
  protected:
     int m_fd = -1;
-    int m_messageId = 0;
+    std::map<int, ConnectionRequest*> m_requests;
+
+    Geek::Mutex* m_requestMutex;
+    ConnectionSendThread* m_connectionThread = nullptr;
+    ConnectionReceiveThread* m_connectionReceiveThread = nullptr;
 
  public:
     Connection();
     virtual ~Connection();
 
+    bool init();
+
     InfoResponse* getInfo();
 
-    bool send(Message* message, int size);
-    Message* wait();
+    Response* send(Request* message, int size);
+
+    void addRequest(ConnectionRequest* request);
+    void receivedResponse(Response* response);
+
+    int getFD() const
+    {
+        return m_fd;
+    }
 };
 
 class ClientConnection : public Connection
 {
  private:
     std::string m_connectionStr;
+
+    ConnectionSendThread* m_connectionThread;
 
     bool connectUnix();
     bool connectINet();
@@ -71,6 +142,9 @@ class ClientConnection : public Connection
 
     ClientSharedMemory* createSharedMemory(int size);
     void destroySharedMemory(ClientSharedMemory* csm);
+
+    Event* eventPoll();
+    Event* eventWait();
 };
 
 }

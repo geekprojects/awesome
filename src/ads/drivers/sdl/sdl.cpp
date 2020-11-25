@@ -8,14 +8,15 @@
 using namespace Awesome;
 using namespace Geek;
 using namespace Geek::Gfx;
+using namespace std;
 
-static int powerOfTwo(int input)
+static unsigned int powerOfTwo(int input)
 {
-    int value = 1;
+    unsigned int value = 1;
 
     while (value < input)
     {
-        value <<= 1;
+        value <<= 1u;
     }
     return value;
 }
@@ -40,6 +41,8 @@ bool SDLDisplayDriver::init()
 
     SDLDisplay* display = new SDLDisplay(this);
     display->init();
+
+    m_displays.insert(make_pair(display->getWindow(), display));
     m_displayServer->addDisplay(display);
 
     return true;
@@ -48,13 +51,50 @@ bool SDLDisplayDriver::init()
 bool SDLDisplayDriver::poll()
 {
     SDL_Event event;
-    while (SDL_PollEvent(&event))
+    log(DEBUG, "poll: Waiting for events...");
+    while (SDL_WaitEvent(&event))
     {
         switch (event.type)
         {
             case SDL_QUIT:
                 log(INFO, "checkEvent: SDL_QUIT!");
                 return false;
+
+            case SDL_MOUSEMOTION:
+            {
+                SDL_Window* sdlWindow = SDL_GetWindowFromID(event.button.windowID);
+                auto it = m_displays.find(sdlWindow);
+                if (it != m_displays.end())
+                {
+                    SDLDisplay* display = it->second;
+                    Event* mouseEvent = new Event();
+                    mouseEvent->eventType = AWESOME_EVENT_MOUSE_MOTION;
+                    mouseEvent->mouse.x = event.button.x + display->getRect().x;
+                    mouseEvent->mouse.y = event.button.y + display->getRect().y;
+
+                    m_displayServer->getCompositor()->postEvent(mouseEvent);
+                }
+            } break;
+
+            case SDL_MOUSEBUTTONUP:
+            case SDL_MOUSEBUTTONDOWN:
+            {
+                SDL_Window* sdlWindow = SDL_GetWindowFromID(event.button.windowID);
+                auto it = m_displays.find(sdlWindow);
+                if (it != m_displays.end())
+                {
+                    SDLDisplay* display = it->second;
+                    Event* mouseEvent = new Event();
+                    mouseEvent->eventType = AWESOME_EVENT_MOUSE_BUTTON;
+                    mouseEvent->mouse.x = event.button.x + display->getRect().x;
+                    mouseEvent->mouse.y = event.button.y + display->getRect().y;
+                    mouseEvent->mouse.button.buttons = 1;
+                    mouseEvent->mouse.button.direction = (event.type == SDL_MOUSEBUTTONDOWN);
+
+                    m_displayServer->getCompositor()->postEvent(mouseEvent);
+                }
+            } break;
+
             case SDL_WINDOWEVENT:
             {
                 switch (event.window.event)
@@ -73,7 +113,6 @@ bool SDLDisplayDriver::poll()
 
 SDLDisplay::SDLDisplay(SDLDisplayDriver* displayDriver) : Display("SDLDisplay", displayDriver)
 {
-
 }
 
 SDLDisplay::~SDLDisplay()
@@ -114,64 +153,10 @@ bool SDLDisplay::init()
     return true;
 }
 
-static void makeIdentity(double m[16])
-{
-    memset(m, 0, sizeof(double) * 16);
-    m[0+4*0] = 1;
-    m[1+4*1] = 1;
-    m[2+4*2] = 1;
-    m[3+4*3] = 1;
-}
-
-static void setPerspective(double fovy, double aspect, double zNear, double zFar)
-{
-    double radians = fovy / 2 * M_PI / 180;
-
-    double deltaZ = zFar - zNear;
-    double sine = sin(radians);
-    if ((deltaZ == 0) || (sine == 0) || (aspect == 0))
-    {
-        return;
-    }
-    double cotangent = cos(radians) / sine;
-
-    double m[4][4];
-    makeIdentity(&m[0][0]);
-    m[0][0] = cotangent / aspect;
-    m[1][1] = cotangent;
-    m[2][2] = -(zFar + zNear) / deltaZ;
-    m[2][3] = -1;
-    m[3][2] = -2 * zNear * zFar / deltaZ;
-    m[3][3] = 0;
-    glMultMatrixd(&m[0][0]);
-}
-
-void SDLDisplay::resize()
-{
-    GLfloat ratio;
-    ratio = ( GLfloat )m_rect.w / ( GLfloat )m_rect.h;
-
-    // Setup our viewport
-    glViewport( 0, 0, ( GLsizei )m_rect.w, ( GLsizei )m_rect.h );
-
-    // change to the projection matrix and set our viewing volume
-    glMatrixMode( GL_PROJECTION );
-    glLoadIdentity( );
-
-    // Set our perspective
-    setPerspective( 45.0f, ratio, 0.001f, 1000.0f );
-
-    // Make sure we're chaning the model view and not the projection
-    glMatrixMode( GL_MODELVIEW );
-
-    // Reset The View
-    glLoadIdentity( );
-
-    glFlush();
-}
-
 bool SDLDisplay::startDraw()
 {
+    SDL_GL_MakeCurrent(m_window, m_glContext);
+
     glMatrixMode(GL_MODELVIEW);
     // clear the drawing buffer.
     glClear(GL_COLOR_BUFFER_BIT);
@@ -184,7 +169,6 @@ bool SDLDisplay::startDraw()
     glDisable(GL_COLOR_MATERIAL);
     glDisable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
-    //glDisable(GL_TEXTURE_2D);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -227,6 +211,8 @@ bool SDLDisplay::draw(Window* window, Geek::Rect drawRect)
 
     glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
 
+    log(DEBUG, "draw: Drawing window...");
+    data->mutex->lock();
     glBindTexture(GL_TEXTURE_2D, data->texture);
     glBegin(GL_TRIANGLE_STRIP);
 
@@ -245,6 +231,8 @@ bool SDLDisplay::draw(Window* window, Geek::Rect drawRect)
     glVertex2i(windowRect.x + (windowRect.w * scale), windowRect.y + (windowRect.h * scale));
 
     glEnd();
+    data->mutex->unlock();
+    log(DEBUG, "draw: Done!");
 
     return true;
 }
@@ -275,6 +263,7 @@ SDLWindowDisplayData* SDLDisplay::getData(Window* window)
     if (data == nullptr)
     {
         data = new SDLWindowDisplayData();
+        data->mutex = Thread::createMutex();
         window->setWindowDisplayData(this, data);
     }
 
@@ -283,26 +272,31 @@ SDLWindowDisplayData* SDLDisplay::getData(Window* window)
 
 void SDLDisplay::updateTexture(Window* window, SDLWindowDisplayData* data, Geek::Gfx::Surface* surface)
 {
+    data->mutex->lock();
+
     log(DEBUG, "updateTexture: window=%p, data=%p", window, data);
     int winWidth = window->getRect().w;
     int winHeight = window->getRect().h;
 
-    float scale = 1;
+    float scale = 2;
 
     unsigned int textureWidth = powerOfTwo(winWidth * scale);
     unsigned int textureHeight = powerOfTwo(winHeight * scale);
     data->textureCoordX = (float)(winWidth * scale) / (float)textureWidth;
     data->textureCoordY = (float)(winHeight * scale) / (float)textureHeight;
 
-    if (data->textureSurface == NULL || data->textureSurface->getWidth() != textureWidth || data->textureSurface->getHeight() != textureHeight )
+    if (data->textureSurface == nullptr ||
+        data->textureSurface->getWidth() != textureWidth ||
+        data->textureSurface->getHeight() != textureHeight )
     {
-        if (data->textureSurface != NULL)
+        if (data->textureSurface != nullptr)
         {
             delete data->textureSurface;
         }
         data->textureSurface = new Surface(textureWidth, textureHeight, 4);
         data->textureSurface->clear(0);
     }
+
     data->textureSurface->blit(0, 0, surface);
 
     SDL_GL_MakeCurrent(m_window, m_glContext);
@@ -326,4 +320,5 @@ void SDLDisplay::updateTexture(Window* window, SDLWindowDisplayData* data, Geek:
         data->textureSurface->getData());
 
     data->valid = true;
+    data->mutex->unlock();
 }

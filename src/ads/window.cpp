@@ -27,3 +27,15 @@ void Window::update(Geek::Gfx::Surface* surface)
         it.first->update(this, surface);
     }
 }
+
+void Window::postEvent(Event* event)
+{
+    if (m_client != nullptr)
+    {
+        m_client->postEvent(event);
+    }
+    else
+    {
+        delete event;
+    }
+}

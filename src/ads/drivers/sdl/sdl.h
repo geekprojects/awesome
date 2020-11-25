@@ -10,6 +10,8 @@
 
 #include <geek/core-thread.h>
 
+#include <map>
+
 #include <SDL.h>
 #include <SDL_video.h>
 
@@ -26,9 +28,12 @@
 
 namespace Awesome
 {
+class SDLDisplay;
+
 class SDLDisplayDriver : public DisplayDriver
 {
  private:
+    std::map<SDL_Window*, SDLDisplay*> m_displays;
 
  public:
     explicit SDLDisplayDriver(DisplayServer* displayServer);
@@ -41,6 +46,7 @@ class SDLDisplayDriver : public DisplayDriver
 
 struct SDLWindowDisplayData : WindowDisplayData
 {
+    Geek::Mutex* mutex = nullptr;
     bool valid = false;
     unsigned int texture = 0;
     unsigned int sampler = 0;
@@ -57,9 +63,7 @@ class SDLDisplay : public Display
 {
  private:
     SDL_Window* m_window = nullptr;
-    SDL_GLContext m_glContext;
-
-    void resize();
+    SDL_GLContext m_glContext = nullptr;
 
     SDLWindowDisplayData* getData(Window* window);
     void updateTexture(Window* window, SDLWindowDisplayData* data, Geek::Gfx::Surface* surface);
@@ -75,6 +79,11 @@ class SDLDisplay : public Display
     void endDraw() override;
 
     void update(Window* window, Geek::Gfx::Surface* surface) override;
+
+    SDL_Window* getWindow() const
+    {
+        return m_window;
+    }
 };
 
 }

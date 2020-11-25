@@ -55,6 +55,12 @@ class Window : public Geek::Logger
         m_rect.y = mPosition.y;
     }
 
+    void setSize(int width, int height)
+    {
+        m_rect.w = width;
+        m_rect.h = height;
+    }
+
     const Geek::Rect& getRect() const
     {
         return m_rect;
@@ -81,6 +87,8 @@ class Window : public Geek::Logger
     }
 
     void update(Geek::Gfx::Surface* surface);
+
+    void postEvent(Event* event);
 };
 
 }

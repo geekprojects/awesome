@@ -1,15 +1,12 @@
-//
-// Created by Ian Parker on 16/11/2020.
-//
-
 #include <awesome/connection.h>
 
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/ioctl.h>
-#include <sys/shm.h>
+#include <sys/mman.h>
 #include <unistd.h>
-#include <errno.h>
+#include <cerrno>
+#include <fcntl.h>
 
 using namespace Awesome;
 using namespace Geek;
@@ -17,6 +14,7 @@ using namespace std;
 
 Connection::Connection() : Logger("Connection")
 {
+    m_requestMutex = Thread::createMutex();
 }
 
 Connection::~Connection()
@@ -27,12 +25,23 @@ Connection::~Connection()
     }
 }
 
+bool Connection::init()
+{
+    m_connectionThread = new ConnectionSendThread(this);
+    m_connectionThread->start();
+
+    m_connectionReceiveThread = new ConnectionReceiveThread(this);
+    m_connectionReceiveThread->start();
+
+    return true;
+}
+
 InfoResponse* Connection::getInfo()
 {
     if (m_fd == -1)
     {
         log(ERROR, "getInfo: No connection");
-        return NULL;
+        return nullptr;
     }
 
     InfoRequest requestInfo;
@@ -40,9 +49,7 @@ InfoResponse* Connection::getInfo()
     requestInfo.direction = true;
     requestInfo.id = 1;
 
-    send(&requestInfo, sizeof(requestInfo));
-
-    Message* message = wait();
+    Response* message = send(&requestInfo, sizeof(requestInfo));
     if (message != nullptr)
     {
         log(DEBUG, "getInfo: packet=%p", message);
@@ -58,43 +65,50 @@ InfoResponse* Connection::getInfo()
     return nullptr;
 }
 
-bool Connection::send(Message* message, int size)
+Response* Connection::send(Request* message, int size)
 {
-    message->id = m_messageId++;
-    int res = ::send(m_fd, message, size, 0);
-    return (res >= 0);
+    log(DEBUG, "send: Sending message...");
+    ConnectionRequest* connectionRequest = m_connectionThread->send(message, size);
+
+    log(DEBUG, "send: Waiting for response to %d", connectionRequest->request->id);
+    if (connectionRequest->response == nullptr)
+    {
+        connectionRequest->signal->wait();
+    }
+
+    log(DEBUG, "send: Got response!");
+    Response* response = connectionRequest->response;
+    delete connectionRequest;
+
+    return response;
 }
 
-Message* Connection::wait()
+void Connection::receivedResponse(Response* response)
 {
-    fd_set fd_set;
-    FD_ZERO (&fd_set);
-    FD_SET (m_fd, &fd_set);
+    log(DEBUG, "receivedResponse: Got response: id=%d", response->id);
+    m_requestMutex->lock();
 
-    int res;
-    res = select(FD_SETSIZE, &fd_set, NULL, NULL, NULL);
-    if (res < 0)
+    auto it = m_requests.find(response->id);
+    if (it == m_requests.end())
     {
-        log(ERROR, "wait: select failed!");
-        return nullptr;
+        log(WARN, "receivedResponse: Unknown request id: %d", response->id);
+        return;
     }
 
-    if (FD_ISSET (m_fd, &fd_set))
-    {
-        int readySize = 0;
-        ioctl(m_fd, FIONREAD, &readySize);
-        log(DEBUG, "wait: readySize=%d", readySize);
+    ConnectionRequest* connectionRequest = it->second;
+    m_requests.erase(it);
+    m_requestMutex->unlock();
 
-        if (readySize > 0)
-        {
-            void* buffer = malloc(readySize);
-            read(m_fd, buffer, readySize);
+    connectionRequest->response = response;
+    log(DEBUG, "receivedResponse: Done with request: %d, signalling", response->id);
+    connectionRequest->signal->signal();
+}
 
-            return (Response*)buffer;
-        }
-    }
-
-    return nullptr;
+void Connection::addRequest(ConnectionRequest* connectionRequest)
+{
+    m_requestMutex->lock();
+    m_requests.insert(make_pair(connectionRequest->request->id, connectionRequest));
+    m_requestMutex->unlock();
 }
 
 ClientConnection::ClientConnection(string connectionStr)
@@ -108,13 +122,25 @@ ClientConnection::~ClientConnection()
 
 bool ClientConnection::connect()
 {
+    bool res;
     if (m_connectionStr.substr(0, 5) == "unix:")
     {
         log(DEBUG, "connect: Unix socket!");
-        return connectUnix();
+        res = connectUnix();
+        if (!res)
+        {
+            return false;
+        }
     }
-    log(ERROR, "connect: Unhandled connection string: %s", m_connectionStr.c_str());
-    return false;
+    else
+    {
+        log(ERROR, "connect: Unhandled connection string: %s", m_connectionStr.c_str());
+        return false;
+    }
+
+    init();
+
+    return true;
 }
 
 bool ClientConnection::connectUnix()
@@ -135,7 +161,7 @@ bool ClientConnection::connectUnix()
     int err = errno;
     log(DEBUG, "connectUnix: res=%d, errno=%d", res, err);
 
-    return false;
+    return true;
 }
 
 bool ClientConnection::connectINet()
@@ -143,41 +169,129 @@ bool ClientConnection::connectINet()
     return false;
 }
 
+static void randname(char *buf)
+{
+    timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    long r = ts.tv_nsec;
+    for (int i = 0; i < 6; ++i)
+    {
+        buf[i] = 'A' + (r & 15) + (r & 16) * 2;
+        r >>= 5;
+    }
+}
+
 ClientSharedMemory* ClientConnection::createSharedMemory(int size)
 {
     ShmAttachRequest request;
-    request.shmid = shmget(IPC_PRIVATE, size, IPC_CREAT | 0777);
-    if (request.shmid == -1)
+
+    int fd = -1;
+    char name[] = "/awesome_shm-XXXXXX";
+    int retries = 100;
+
+    do {
+        randname(name + sizeof(name) - 7);
+        --retries;
+        fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+        if (fd >= 0)
+        {
+            //shm_unlink(name);
+            break;
+        }
+    }
+    while (retries > 0 && errno == EEXIST);
+
+    if (fd == -1)
     {
-        log(ERROR, "createSharedMemory: Failed to create shared memory: %s", strerror(errno));
         return nullptr;
     }
+
+    int res;
+    res = ftruncate(fd, size);
+    if (res != 0)
+    {
+        log(ERROR, "Failed to set size: %s", strerror(errno));
+        return nullptr;
+    }
+
+    strncpy(request.path, name, 255);
     request.size = size;
 
-    send(&request, sizeof(request));
-    Response* response = static_cast<Response*>(wait());
-
+    Response* response = send(&request, sizeof(request));
     log(DEBUG, "createSharedMemory: success=%d", response->success);
 
-    void* shmaddr = shmat(request.shmid, 0, 0);
-    return new ClientSharedMemory(this, request.shmid, size, shmaddr);
+    void* shmaddr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+    return new ClientSharedMemory(this, name, fd, size, shmaddr);
 }
 
 void ClientConnection::destroySharedMemory(ClientSharedMemory* csm)
 {
     ShmDetachRequest shmDetachRequest;
-    shmDetachRequest.shmid = csm->getShmid();
+    strncpy(shmDetachRequest.path, csm->getPath().c_str(), 255);
 
     send(&shmDetachRequest, sizeof(shmDetachRequest));
 
-    shmdt(csm->getAddr());
-    shmctl(csm->getShmid(), IPC_RMID, 0);
+    munmap(csm->getAddr(), csm->getSize());
+
+    shm_unlink(csm->getPath().c_str());
 }
 
-ClientSharedMemory::ClientSharedMemory(ClientConnection* connection, int shmid, int size, void* addr)
+Event* ClientConnection::eventPoll()
+{
+    log(DEBUG, "eventPoll: Polling..");
+    EventPollRequest request;
+
+    EventResponse* eventPollResponse = (EventResponse*)send(&request, sizeof(request));
+
+    Event* event = nullptr;
+    if (eventPollResponse->hasEvent)
+    {
+        event = new Event();
+        memcpy((Event*)event, &(eventPollResponse->event), sizeof(Event));
+        log(DEBUG, "eventPoll: Received event!");
+    }
+
+    free(eventPollResponse);
+
+    return event;
+}
+
+Event* ClientConnection::eventWait()
+{
+    log(DEBUG, "eventWait: Sending wait request..");
+    EventWaitRequest request;
+    EventResponse* eventPollResponse = (EventResponse*)send(&request, sizeof(request));
+
+    log(DEBUG, "eventWait: Received message");
+
+    Event* event = nullptr;
+    if (eventPollResponse->hasEvent)
+    {
+        event = new Event();
+        memcpy((Event*)event, &(eventPollResponse->event), sizeof(Event));
+        log(DEBUG, "eventPoll: Received event!");
+    }
+    else
+    {
+        log(DEBUG, "eventWait: No event?");
+    }
+
+    free(eventPollResponse);
+
+    return event;
+}
+
+ClientSharedMemory::ClientSharedMemory(
+    ClientConnection* connection,
+    string path,
+    int fd,
+    int size,
+    void* addr)
 {
     m_connection = connection;
-    m_shmid = shmid;
+    m_path = path;
+    m_fd = fd;
     m_size = size;
     m_addr = addr;
 }

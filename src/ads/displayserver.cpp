@@ -10,9 +10,10 @@ using namespace Awesome;
 using namespace Geek;
 using namespace std;
 
-DisplayServer::DisplayServer()
+DisplayServer::DisplayServer() : Logger("DisplayServer")
 {
     m_messageSignal = Thread::createCondVar();
+    m_drawSignal = Thread::createCondVar();
 }
 
 DisplayServer::~DisplayServer()
@@ -36,13 +37,20 @@ bool DisplayServer::init()
     AwesomeInterface* awesomeInterface = new AwesomeInterface(this);
     awesomeInterface->init();
 
+    m_drawThread = new DisplayServerDrawThread(this);
+
     return true;
 }
 
 void DisplayServer::main()
 {
+    m_running = true;
+
+    m_drawThread->start();
+
     while (m_running)
     {
+        log(DEBUG, "main: Polling...");
         for (DisplayDriver* driver : m_displayDrivers)
         {
             bool res;
@@ -52,13 +60,6 @@ void DisplayServer::main()
                 m_running = false;
             }
         }
-
-        for (Display* display : m_displays)
-        {
-            m_compositor->draw(display);
-        }
-
-        m_messageSignal->wait(1000);
     }
 }
 
@@ -88,5 +89,30 @@ void DisplayServer::removeClient(Client* client)
         m_compositor->removeWindow(window);
     }
 
+}
+
+DisplayServerDrawThread::DisplayServerDrawThread(DisplayServer* displayServer)
+{
+    m_displayServer = displayServer;
+}
+
+DisplayServerDrawThread::~DisplayServerDrawThread()
+{
+
+}
+
+bool DisplayServerDrawThread::main()
+{
+    while (m_displayServer->isRunning())
+    {
+        for (Display* display : m_displayServer->getDisplays())
+        {
+            m_displayServer->getCompositor()->draw(display);
+        }
+
+        m_displayServer->getDrawSignal()->wait();
+    }
+
+    return true;
 }
 

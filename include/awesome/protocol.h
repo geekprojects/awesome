@@ -2,6 +2,7 @@
 #define AWESOME_PROTOCOL_H
 
 #include <stdint.h>
+#include "event.h"
 
 #define PACKED __attribute__((packed))
 
@@ -10,15 +11,18 @@ namespace Awesome
 
 enum RequestType
 {
-    REQUEST_INFO,
+    REQUEST_INFO              = 0x1000,
 
-    REQUEST_SHM_ATTACH,
-    REQUEST_SHM_DETACH,
+    REQUEST_SHM_ATTACH        = 0x2000,
+    REQUEST_SHM_DETACH        = 0x2001,
 
-    REQUEST_WINDOW_CREATE,
-    REQUEST_WINDOW_DESTROY,
-    REQUEST_WINDOW_UPDATE,
-    REQUEST_WINDOW_SET_SIZE,
+    REQUEST_WINDOW_CREATE     = 0x3000,
+    REQUEST_WINDOW_DESTROY    = 0x3001,
+    REQUEST_WINDOW_UPDATE     = 0x3002,
+    REQUEST_WINDOW_SET_SIZE   = 0x3003,
+
+    REQUEST_EVENT_POLL        = 0x4000,
+    REQUEST_EVENT_WAIT        = 0x4001
 
 } PACKED;
 
@@ -27,6 +31,7 @@ struct Message
     bool direction;
     uint16_t request;
     uint64_t id;
+    uint32_t size;
 } __attribute__((packed));
 
 struct Request : Message
@@ -84,7 +89,7 @@ struct InfoResponse : Response
 
 struct ShmAttachRequest : Request
 {
-    int shmid;
+    char path[256];
     int size;
 
     ShmAttachRequest()
@@ -95,7 +100,7 @@ struct ShmAttachRequest : Request
 
 struct ShmDetachRequest : Request
 {
-    int shmid;
+    char path[256];
 
     ShmDetachRequest()
     {
@@ -128,11 +133,52 @@ struct WindowCreateResponse : Response
 struct WindowUpdateRequest : Request
 {
     int windowId;
-    int shmid;
+    char shmPath[256];
 
     WindowUpdateRequest()
     {
         request = REQUEST_WINDOW_UPDATE;
+    }
+};
+
+struct WindowSetSizeRequest : Request
+{
+    int windowId;
+    int width;
+    int height;
+
+    WindowSetSizeRequest()
+    {
+        request = REQUEST_WINDOW_SET_SIZE;
+    }
+};
+
+struct EventPollRequest : Request
+{
+    EventPollRequest()
+    {
+        request = REQUEST_EVENT_POLL;
+    }
+};
+
+struct EventWaitRequest : Request
+{
+    uint32_t timeout;
+
+    EventWaitRequest()
+    {
+        request = REQUEST_EVENT_WAIT;
+    }
+};
+
+struct EventResponse : Response
+{
+    bool hasEvent;
+    Event event;
+
+    EventResponse()
+    {
+        request = REQUEST_EVENT_POLL;
     }
 };
 

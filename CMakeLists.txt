@@ -46,7 +46,10 @@ install(TARGETS awesome-display-server DESTINATION bin)
 #
 # libawesome
 #
-add_library(awesome SHARED src/libawesome/connection.cpp)
+add_library(awesome SHARED
+        src/libawesome/connection.cpp
+        src/libawesome/connthread.cpp
+        )
 target_link_libraries(awesome ${libgeek_LDFLAGS})
 install(DIRECTORY include/awesome DESTINATION include FILES_MATCHING PATTERN "*.h" )
 install(TARGETS awesome DESTINATION lib)
