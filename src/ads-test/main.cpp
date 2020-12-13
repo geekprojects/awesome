@@ -4,17 +4,35 @@
 #include <unistd.h>
 
 using namespace Awesome;
+using namespace Geek;
+using namespace std;
 
 int main(int argc, char** argv)
 {
     ClientConnection* client = new ClientConnection("unix:/usr/local/var/awesome/ads.socket");
+    //ClientConnection* client = new ClientConnection("inet:localhost");
 
     client->connect();
 
     InfoResponse* info = client->getInfo();
-    printf("ads-test: name=%s, vendor=%s", info->name, info->vendor);
+    printf("ads-test: name=%s, vendor=%s\n", info->name, info->vendor);
     delete info;
 
+    unsigned int i;
+    for (i = 0; i < info->numDisplays; i++)
+    {
+        InfoDisplayRequest infoDisplayRequest;
+        infoDisplayRequest.display = i;
+        InfoDisplayResponse* response = static_cast<InfoDisplayResponse*>(client->send(
+            &infoDisplayRequest,
+            sizeof(infoDisplayRequest)));
+
+        printf("display %u: %d, %d\n", i, response->width, response->height);
+
+        free(response);
+    }
+
+    /*
     ClientSharedMemory* csm = client->createSharedMemory((100 * 2) * (100 * 2) * 4);
 
     uint32_t p = 0xff888888;
@@ -39,6 +57,7 @@ int main(int argc, char** argv)
 
     client->destroySharedMemory(csm);
     delete csm;
+     */
 
     delete client;
 
