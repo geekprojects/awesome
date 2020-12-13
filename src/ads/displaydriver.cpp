@@ -6,7 +6,7 @@
 
 using namespace Awesome;
 
-DisplayDriver::DisplayDriver(std::string name, DisplayServer* displayServer)
+DisplayDriver::DisplayDriver(const std::string& name, DisplayServer* displayServer)
  : Logger("DisplayDriver[" + name + "]")
 {
     m_name = name;
@@ -14,8 +14,7 @@ DisplayDriver::DisplayDriver(std::string name, DisplayServer* displayServer)
 }
 
 DisplayDriver::~DisplayDriver()
-{
-}
+= default;
 
 bool DisplayDriver::init()
 {

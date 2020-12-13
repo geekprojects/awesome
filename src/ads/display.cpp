@@ -5,15 +5,13 @@
 using namespace Awesome;
 using namespace std;
 
-Display::Display(string name, DisplayDriver* displayDriver) : Logger("Display[" + name + "]")
+Display::Display(const string& name, DisplayDriver* displayDriver) : Logger("Display[" + name + "]")
 {
     m_name = name;
     m_displayDriver = displayDriver;
 }
 
-Display::~Display()
-{
-}
+Display::~Display() = default;
 
 bool Display::init()
 {
@@ -35,6 +33,10 @@ void Display::endDraw()
 }
 
 void Display::update(Window* window, Geek::Gfx::Surface* surface)
+{
+}
+
+void Display::updateFrame(Window* window)
 {
 }
 

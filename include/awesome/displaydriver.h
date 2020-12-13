@@ -19,7 +19,7 @@ class DisplayDriver : public Geek::Logger
     DisplayServer* m_displayServer;
 
  public:
-    DisplayDriver(std::string name, DisplayServer* displayServer);
+    DisplayDriver(const std::string& name, DisplayServer* displayServer);
     virtual ~DisplayDriver();
 
     virtual bool init();

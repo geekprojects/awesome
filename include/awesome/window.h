@@ -2,6 +2,7 @@
 #define AWESOME_WINDOW_H
 
 #include <awesome/client.h>
+#include <awesome/protocol.h>
 
 #include <geek/core-logger.h>
 #include <geek/core-maths.h>
@@ -13,20 +14,28 @@ namespace Awesome
 {
 
 struct Display;
+struct DisplayServer;
 struct WindowDisplayData;
 
 class Window : public Geek::Logger
 {
  private:
-    int m_id;
-    Client* m_client;
+    int m_id = 0;
+    unsigned int m_flags = 0;
+    bool m_visible = true;
+    std::wstring m_title;
+
+    DisplayServer* m_displayServer = nullptr;
+    Client* m_client = nullptr;
 
     Geek::Rect m_rect;
+    Geek::Rect m_contentRect;
 
+    Geek::Gfx::Surface* m_frameSurface = nullptr;
     std::map<Display*, WindowDisplayData*> m_windowDisplayData;
 
  public:
-    explicit Window(Client* client);
+    Window(DisplayServer* displayServer, Client* client);
     ~Window();
 
     int getId() const
@@ -37,6 +46,46 @@ class Window : public Geek::Logger
     void setId(int mId)
     {
         m_id = mId;
+    }
+
+    unsigned int getFlags() const
+    {
+        return m_flags;
+    }
+
+    void setFlags(unsigned int mFlags)
+    {
+        m_flags = mFlags;
+    }
+
+    bool hasFrame() const
+    {
+        return (m_flags & WINDOW_BORDER || m_flags & WINDOW_TITLE);
+    }
+
+    bool wantsMotionEvents() const
+    {
+        return m_flags & WINDOW_MOTION_EVENTS;
+    }
+
+    const std::wstring& getTitle() const
+    {
+        return m_title;
+    }
+
+    void setTitle(const std::wstring &mTitle)
+    {
+        m_title = mTitle;
+    }
+
+    bool isVisible() const
+    {
+        return m_visible;
+    }
+
+    void setVisible(bool mVisible)
+    {
+        m_visible = mVisible;
     }
 
     Client* getClient() const
@@ -55,10 +104,11 @@ class Window : public Geek::Logger
         m_rect.y = mPosition.y;
     }
 
-    void setSize(int width, int height)
+    void setContentSize(int width, int height);
+
+    const Geek::Rect& getContentRect() const
     {
-        m_rect.w = width;
-        m_rect.h = height;
+        return m_contentRect;
     }
 
     const Geek::Rect& getRect() const
@@ -69,6 +119,11 @@ class Window : public Geek::Logger
     void setRect(const Geek::Rect &mRect)
     {
         m_rect = mRect;
+    }
+
+    Geek::Gfx::Surface* getFrameSurface()
+    {
+        return m_frameSurface;
     }
 
     WindowDisplayData* getWindowDisplayData(Display* display) const
@@ -87,6 +142,8 @@ class Window : public Geek::Logger
     }
 
     void update(Geek::Gfx::Surface* surface);
+
+    void updateFrame();
 
     void postEvent(Event* event);
 };

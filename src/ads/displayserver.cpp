@@ -1,9 +1,10 @@
-//
-// Created by Ian Parker on 05/11/2020.
-//
-
 #include <awesome/displayserver.h>
+#ifdef AWESOME_ENGINE_DRM
+#include "drivers/linuxdrm/linuxdrm.h"
+#endif
+#ifdef AWESOME_ENGINE_SDL
 #include "drivers/sdl/sdl.h"
+#endif
 #include "interfaces/awesome/awesome.h"
 
 using namespace Awesome;
@@ -12,26 +13,52 @@ using namespace std;
 
 DisplayServer::DisplayServer() : Logger("DisplayServer")
 {
-    m_messageSignal = Thread::createCondVar();
     m_drawSignal = Thread::createCondVar();
 }
 
 DisplayServer::~DisplayServer()
 {
+    for (Interface* iface : m_interfaces)
+    {
+        delete iface;
+    }
 
+    for (DisplayDriver* driver : m_displayDrivers)
+    {
+        delete driver;
+    }
+
+    delete m_compositor;
+
+    delete m_fontManager;
 }
 
 bool DisplayServer::init()
 {
     bool res;
 
+    m_fontManager = new FontManager();
+    m_fontManager->init();
+#if defined(__APPLE__) && defined(__MACH__)
+    m_fontManager->scan("/Library/Fonts");
+    m_fontManager->scan("/System/Library/Fonts");
+    const char* homechar = getenv("HOME");
+    m_fontManager->scan(string(homechar) + "/Library/Fonts");
+#else
+    m_fontManager->scan("/usr/share/fonts");
+#endif
+
     m_compositor = new Compositor(this);
 
-    SDLDisplayDriver* openGlDisplayDriver = new SDLDisplayDriver(this);
-    res = openGlDisplayDriver->init();
+#ifdef AWESOME_ENGINE_DRM
+    DisplayDriver* displayDriver = new DRMDisplayDriver(this);
+#elif defined(AWESOME_ENGINE_SDL)
+    DisplayDriver* displayDriver = new SDLDisplayDriver(this);
+#endif
+    res = displayDriver->init();
     if (res)
     {
-        m_displayDrivers.push_back(openGlDisplayDriver);
+        m_displayDrivers.push_back(displayDriver);
     }
 
     AwesomeInterface* awesomeInterface = new AwesomeInterface(this);
@@ -89,6 +116,7 @@ void DisplayServer::removeClient(Client* client)
         m_compositor->removeWindow(window);
     }
 
+    m_drawSignal->signal();
 }
 
 DisplayServerDrawThread::DisplayServerDrawThread(DisplayServer* displayServer)
@@ -96,10 +124,7 @@ DisplayServerDrawThread::DisplayServerDrawThread(DisplayServer* displayServer)
     m_displayServer = displayServer;
 }
 
-DisplayServerDrawThread::~DisplayServerDrawThread()
-{
-
-}
+DisplayServerDrawThread::~DisplayServerDrawThread() = default;
 
 bool DisplayServerDrawThread::main()
 {

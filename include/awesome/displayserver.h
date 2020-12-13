@@ -12,6 +12,7 @@
 #include <awesome/compositor.h>
 
 #include <geek/core-thread.h>
+#include <geek/fonts.h>
 
 #include <vector>
 
@@ -25,16 +26,13 @@ class DisplayServer : Geek::Logger
     std::vector<Interface*> m_interfaces;
     std::vector<DisplayDriver*> m_displayDrivers;
     std::vector<Display*> m_displays;
-    Compositor* m_compositor;
-
-    DisplayServerDrawThread* m_drawThread;
-
     std::vector<Client*> m_clients;
 
- public:
- private:
+    Compositor* m_compositor = nullptr;
 
-    Geek::CondVar* m_messageSignal;
+    DisplayServerDrawThread* m_drawThread = nullptr;
+    Geek::FontManager* m_fontManager = nullptr;
+
     Geek::CondVar* m_drawSignal;
     bool m_running = true;
 
@@ -68,6 +66,11 @@ class DisplayServer : Geek::Logger
     Geek::CondVar* getDrawSignal() const
     {
         return m_drawSignal;
+    }
+
+    Geek::FontManager* getFontManager() const
+    {
+        return m_fontManager;
     }
 };
 
