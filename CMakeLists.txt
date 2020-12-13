@@ -8,17 +8,20 @@ find_package(PkgConfig REQUIRED)
 
 #pkg_check_modules(glfw3 REQUIRED glfw3)
 include(FindOpenGL)
-include(FindGLUT)
+#include(FindGLUT)
 pkg_check_modules(sdl2 sdl2)
 pkg_check_modules(libevent REQUIRED libevent)
+pkg_check_modules(libevent_pthreads REQUIRED libevent_pthreads)
 pkg_check_modules(libgeek REQUIRED libgeek)
+find_path(XF86_INCLUDE_PATH xf86drm.h)
+find_library(LIBRT rt)
 
 add_definitions(${libgeek_CFLAGS} ${libevent_CFLAGS} ${sdl2_CFLAGS})
 include_directories(include)
 
 add_definitions(-DAWESOME_SRC=${PROJECT_SOURCE_DIR})
 
-add_executable(awesome-display-server
+list(APPEND ads_srcs
     include/awesome/displaydriver.h
     include/awesome/displayserver.h
     include/awesome/interface.h
@@ -32,14 +35,35 @@ add_executable(awesome-display-server
     src/ads/displaydriver.cpp
     src/ads/display.cpp
     src/ads/window.cpp
+    src/ads/drivers/opengl.cpp
+    src/ads/drivers/opengl.h
     src/ads/interface.cpp
-    src/ads/drivers/sdl/sdl.cpp
-    src/ads/drivers/sdl/sdl.h
     src/ads/interfaces/awesome/awesome.cpp
     src/ads/interfaces/awesome/client.cpp
     src/ads/interfaces/awesome/awesome.h
 )
-target_link_libraries(awesome-display-server ${libgeek_LDFLAGS} ${sdl2_LDFLAGS} ${OPENGL_LIBRARIES} ${libevent_LDFLAGS})
+
+set(DRIVER_LIBRARIES "")
+if (sdl2_FOUND)
+    list(APPEND ads_srcs
+        src/ads/drivers/sdl/sdl.cpp
+        src/ads/drivers/sdl/sdl.h
+    )
+    list(APPEND DRIVER_LIBRARIES ${sdl2_LDFLAGS})
+    add_definitions(-DAWESOME_ENGINE_SDL=1)
+endif()
+if (XF86_INCLUDE_PATH)
+    list(APPEND ads_srcs
+            src/ads/drivers/linuxdrm/linuxdrm.cpp
+            src/ads/drivers/linuxdrm/linuxdrm.h
+    )
+    add_definitions(-I${XF86_INCLUDE_PATH}/drm -DAWESOME_ENGINE_DRM=1)
+    list(APPEND DRIVER_LIBRARIES -ldrm -lrt)
+endif()
+
+add_executable(awesome-display-server ${ads_srcs})
+target_include_directories(awesome-display-server PRIVATE ${PROJECT_SOURCE_DIR}/src/ads)
+target_link_libraries(awesome-display-server ${libgeek_LDFLAGS} ${DRIVER_LIBRARIES} ${OPENGL_LIBRARIES} ${libevent_LDFLAGS} ${libevent_pthreads_LDFLAGS})
 
 install(TARGETS awesome-display-server DESTINATION bin)
 
@@ -53,6 +77,15 @@ add_library(awesome SHARED
 target_link_libraries(awesome ${libgeek_LDFLAGS})
 install(DIRECTORY include/awesome DESTINATION include FILES_MATCHING PATTERN "*.h" )
 install(TARGETS awesome DESTINATION lib)
+
+#
+# awesome-desktop
+#
+add_executable(
+        awesome-desktop
+        src/awesome-desktop/main.cpp
+)
+target_link_libraries(awesome-desktop awesome)
 
 #
 # ads-test
