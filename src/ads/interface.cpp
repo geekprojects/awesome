@@ -6,15 +6,13 @@
 
 using namespace Awesome;
 
-Interface::Interface(std::string name, DisplayServer* displayServer): Logger("Interface[" + name + "]")
+Interface::Interface(const std::string& name, DisplayServer* displayServer): Logger("Interface[" + name + "]")
 {
     m_name = name;
     m_displayServer = displayServer;
 }
 
-Interface::~Interface()
-{
-}
+Interface::~Interface() = default;
 
 bool Interface::init()
 {

@@ -1,6 +1,8 @@
 
 #include <awesome/client.h>
 
+#include <stdio.h>
+
 using namespace Awesome;
 using namespace Geek;
 
@@ -11,15 +13,23 @@ Client::Client(Interface* interface)
     m_eventsSignal = Thread::createCondVar();
 }
 
-Client::~Client()
-{
-}
+Client::~Client() = default;
 
 void Client::postEvent(Event* event)
 {
+    printf("Client::postEvent: %p: Posting!\n", this);
+
+    bool queue = receivedEvent(event);
+    if (!queue)
+    {
+        delete event;
+        return;
+    }
+
     m_eventsMutex->lock();
     m_events.push_back(event);
     m_eventsMutex->unlock();
+
     m_eventsSignal->signal();
 }
 
@@ -43,12 +53,13 @@ Event* Client::waitEvent()
         Event* event = popEvent();
         if (event != nullptr)
         {
+            printf("Client::waitEvent: %p: Got event!\n", this);
             return event;
         }
 
-        printf("Client::waitEvent: Waiting for event signal!\n");
+        printf("Client::waitEvent: %p: Waiting...\n", this);
         m_eventsSignal->wait();
-        printf("Client::waitEvent: Got signal!\n");
+        printf("Client::waitEvent: %p: Woken!\n", this);
     }
 }
 

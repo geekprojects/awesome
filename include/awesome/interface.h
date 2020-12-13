@@ -15,16 +15,16 @@ class DisplayServer;
 class Interface : public Geek::Logger
 {
  protected:
-    std::string m_name;
+    [[maybe_unused]] std::string m_name;
     DisplayServer* m_displayServer;
 
  public:
-    Interface(std::string name, DisplayServer* displayServer);
+    Interface(const std::string& name, DisplayServer* displayServer);
     virtual ~Interface();
 
     virtual bool init();
 
-    DisplayServer* getDisplayServer() const
+    [[nodiscard]] DisplayServer* getDisplayServer() const
     {
         return m_displayServer;
     }

@@ -7,14 +7,17 @@
 
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <cstring>
+#include <unistd.h>
 
 using namespace Awesome;
 using namespace Geek;
 using namespace Geek::Gfx;
 using namespace std;
 
-AwesomeClient::AwesomeClient(AwesomeInterface* awesomeInterface, bufferevent* bev) : Awesome::Client(awesomeInterface), Logger("AwesomeClient")
+AwesomeClient::AwesomeClient(AwesomeInterface* awesomeInterface, int fd, bufferevent* bev) : Awesome::Client(awesomeInterface), Logger("AwesomeClient")
 {
+    m_fd = fd;
     m_bufferEvent = bev;
 }
 
@@ -30,12 +33,10 @@ void AwesomeClient::readCallback(struct bufferevent* bev, void* ctx)
 static int g_total = 0;
 void AwesomeClient::readCallback(bufferevent* bev)
 {
-    log(DEBUG, "readCallback: bev=%p", bev);
     evbuffer* input = bufferevent_get_input(bev);
 
     size_t len = evbuffer_get_length(input);
     g_total += len;
-    log(DEBUG, "readCallback: Got %d bytes! (%d)", len, g_total);
 
     if (len < sizeof(Request))
     {
@@ -49,7 +50,7 @@ void AwesomeClient::readCallback(bufferevent* bev)
     Request* request = (Request*)buffer;
 
     //log(DEBUG, "readCallback: request type: 0x%x, id: %d", request->request, request->id);
-    if (!request->direction)
+    if (!(request->messageFlags & MESSAGE_REQUEST))
     {
         log(ERROR, "readCallback: Received response message?");
         free(buffer);
@@ -60,6 +61,10 @@ void AwesomeClient::readCallback(bufferevent* bev)
     {
         case REQUEST_INFO:
             handleInfoRequest((InfoRequest*)request);
+            break;
+
+        case REQUEST_INFO_DISPLAY:
+            handleInfoDisplayRequest((InfoDisplayRequest*)request);
             break;
 
         case REQUEST_SHM_ATTACH:
@@ -95,7 +100,6 @@ void AwesomeClient::readCallback(bufferevent* bev)
     }
 
     free(buffer);
-    log(DEBUG, "readCallback: Done!");
 }
 
 void AwesomeClient::errorCallback(bufferevent *bev, short error, void *ctx)
@@ -139,13 +143,40 @@ void AwesomeClient::handleInfoRequest(InfoRequest* request)
     response.request = REQUEST_INFO;
     response.id = request->id;
     response.protocolVersion = 1;
-    response.numDisplays = 1;
+
+    vector<Display*> displays = m_interface->getDisplayServer()->getDisplays();
+    response.numDisplays = displays.size();
+
     response.numDrivers = 1;
     response.numInterfaces = 1;
     strncpy(response.name, "Awesome", 32);
     strncpy(response.version, "0.1", 32);
     strncpy(response.vendor, "GeekProjects", 32);
 
+    send(&response, sizeof(response));
+}
+
+void AwesomeClient::handleInfoDisplayRequest(InfoDisplayRequest* request)
+{
+    vector<Display*> displays = m_interface->getDisplayServer()->getDisplays();
+    log(DEBUG, "handleInfoDisplayRequest: display=%d, displays=%d", request->display, displays.size());
+    if (request->display >= displays.size())
+    {
+        Response response(request, false);
+        send(&response, sizeof(response));
+        return;
+    }
+
+    Display* display = displays.at(request->display);
+
+    InfoDisplayResponse response;
+    response.request = REQUEST_INFO_DISPLAY;
+    response.success = true;
+    response.id = request->id;
+    response.x = display->getRect().x;
+    response.y = display->getRect().y;
+    response.width = display->getRect().w;
+    response.height = display->getRect().h;
     send(&response, sizeof(response));
 }
 
@@ -193,12 +224,15 @@ void AwesomeClient::handleSharedMemoryDetach(ShmDetachRequest* request)
 
 void AwesomeClient::handleWindowCreate(WindowCreateRequest* request)
 {
-    Window* window = new Window(this);
-    window->setRect(Rect(0, 0, request->width, request->height));
+    Window* window = new Window(m_interface->getDisplayServer(), this);
+    window->setPosition(Vector2D(0, 0));
+    window->setFlags(request->flags);
+    window->setTitle(request->title);
+    window->setContentSize(request->width, request->height);
 
     m_interface->getDisplayServer()->getCompositor()->addWindow(window);
 
-    log(DEBUG, "handleWindowCreate: windowId=%d, width=%d, height=%d", window->getId(), request->width, request->height);
+    log(DEBUG, "handleWindowCreate: windowId=%d, width=%d, height=%d, title: %ls", window->getId(), request->width, request->height, window->getTitle().c_str());
 
     WindowCreateResponse response;
     response.id = request->id;
@@ -231,19 +265,16 @@ void AwesomeClient::handleWindowUpdate(WindowUpdateRequest* request)
 
     float scale = 2.0f;
     Surface* surface = new Surface(
-        window->getRect().w * scale,
-        window->getRect().h * scale,
+        window->getContentRect().w * scale,
+        window->getContentRect().h * scale,
         4,
         (uint8_t*)it->second.addr);
 
-    log(DEBUG, "handleWindowUpdate: Updating window: %p", window);
     window->update(surface);
 
-    log(DEBUG, "handleWindowUpdate: Requesting draw...");
     m_interface->getDisplayServer()->getDrawSignal()->signal();
 
     delete surface;
-    log(DEBUG, "handleWindowUpdate: Done!");
 
     Response response(request, true);
     send(&response, sizeof(response));
@@ -267,7 +298,7 @@ void AwesomeClient::handleWindowSetSize(WindowSetSizeRequest* request)
         return;
     }
 
-    window->setSize(request->width, request->height);
+    window->setContentSize(request->width, request->height);
 
     Response response(request, true);
     send(&response, sizeof(response));
@@ -277,7 +308,6 @@ void AwesomeClient::handleEventPoll(EventPollRequest* request)
 {
     EventResponse response;
     response.request = REQUEST_EVENT_POLL;
-    response.direction = false;
     response.id = request->id;
     response.success = true;
 
@@ -298,33 +328,59 @@ void AwesomeClient::handleEventPoll(EventPollRequest* request)
 
 void AwesomeClient::handleEventWait(EventWaitRequest* request)
 {
-    EventResponse response;
-    response.request = REQUEST_EVENT_WAIT;
-    response.direction = false;
-    response.id = request->id;
-    response.success = true;
-
-    Event* event = waitEvent();
-    if (event == nullptr)
+    Event* event = popEvent();
+    if (event != nullptr)
     {
-        response.hasEvent = false;
+        EventResponse response;
+        response.request = REQUEST_EVENT_WAIT;
+        response.id = request->id;
+        response.success = true;
+        response.hasEvent = true;
+        response.event = *event;
         send(&response, sizeof(response));
+        m_waitingForEvent = false;
         return;
     }
 
-    response.hasEvent = true;
-    response.event = *event;
-
-    log(DEBUG, "handleEventWait: Found event!");
-    send(&response, sizeof(response));
+    log(DEBUG, "handleEventWait: %p: No current event, waiting...", this);
+    m_waitingForEvent = true;
+    m_waitingForEventRequestId = request->id;
 }
 
 void AwesomeClient::send(Message* message, int size)
 {
-    log(DEBUG, "send: Sending response: id=%d", message->id);
+    log(DEBUG, "send: %p: Sending %d bytes", this, size);
     message->size = size;
-    evbuffer* output = bufferevent_get_output(m_bufferEvent);
-    evbuffer_add(output, message, size);
+
+    bufferevent_write(m_bufferEvent, message, size);
+    bufferevent_flush(m_bufferEvent, EV_WRITE, BEV_FLUSH);
+
+    /*
+    //int res = ::send(m_fd, message, size, 0);
+    int res = ::write(m_fd, message, size);
+    log(DEBUG, "send: res=%d", res);
+     */
+}
+
+bool AwesomeClient::receivedEvent(Event* event)
+{
+    log(DEBUG, "receivedEvent: %p: waiting=%d", this, m_waitingForEvent);
+    if (m_waitingForEvent)
+    {
+        EventResponse response;
+        response.request = REQUEST_EVENT_WAIT;
+        response.id = m_waitingForEventRequestId;
+        response.success = true;
+        response.hasEvent = true;
+        response.event = *event;
+
+        log(DEBUG, "receivedEvent: Sending...");
+        send(&response, sizeof(response));
+        m_waitingForEvent = false;
+        return false;
+    }
+
+    return true;
 }
 
 

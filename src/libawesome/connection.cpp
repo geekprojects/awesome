@@ -2,11 +2,12 @@
 
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cerrno>
 #include <fcntl.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 using namespace Awesome;
 using namespace Geek;
@@ -19,6 +20,9 @@ Connection::Connection() : Logger("Connection")
 
 Connection::~Connection()
 {
+    m_connectionReceiveThread->stop();
+    m_connectionSendThread->stop();
+
     if (m_fd != -1)
     {
         close(m_fd);
@@ -27,8 +31,8 @@ Connection::~Connection()
 
 bool Connection::init()
 {
-    m_connectionThread = new ConnectionSendThread(this);
-    m_connectionThread->start();
+    m_connectionSendThread = new ConnectionSendThread(this);
+    m_connectionSendThread->start();
 
     m_connectionReceiveThread = new ConnectionReceiveThread(this);
     m_connectionReceiveThread->start();
@@ -46,15 +50,12 @@ InfoResponse* Connection::getInfo()
 
     InfoRequest requestInfo;
     requestInfo.request = REQUEST_INFO;
-    requestInfo.direction = true;
     requestInfo.id = 1;
 
     Response* message = send(&requestInfo, sizeof(requestInfo));
     if (message != nullptr)
     {
-        log(DEBUG, "getInfo: packet=%p", message);
-
-        InfoResponse* response = new InfoResponse();
+        auto response = new InfoResponse();
         memcpy(response, message, sizeof(InfoResponse));
 
         free(message);
@@ -67,17 +68,22 @@ InfoResponse* Connection::getInfo()
 
 Response* Connection::send(Request* message, int size)
 {
-    log(DEBUG, "send: Sending message...");
-    ConnectionRequest* connectionRequest = m_connectionThread->send(message, size);
+    volatile ConnectionRequest* connectionRequest = m_connectionSendThread->send(message, size);
 
-    log(DEBUG, "send: Waiting for response to %d", connectionRequest->request->id);
-    if (connectionRequest->response == nullptr)
+    m_requestMutex->lock();
+    Response* response = connectionRequest->response;
+    m_requestMutex->unlock();
+    if (response == nullptr)
     {
+        //log(DEBUG, "send: Waiting for response signal: id=%d", connectionRequest->request->id);
         connectionRequest->signal->wait();
     }
+    else
+    {
+        log(DEBUG, "send: Already got a response!");
+    }
 
-    log(DEBUG, "send: Got response!");
-    Response* response = connectionRequest->response;
+    response = connectionRequest->response;
     delete connectionRequest;
 
     return response;
@@ -85,48 +91,75 @@ Response* Connection::send(Request* message, int size)
 
 void Connection::receivedResponse(Response* response)
 {
-    log(DEBUG, "receivedResponse: Got response: id=%d", response->id);
+    log(DEBUG, "receivedResponse: %d: locking...", response->id);
     m_requestMutex->lock();
 
     auto it = m_requests.find(response->id);
     if (it == m_requests.end())
     {
+        m_requestMutex->unlock();
         log(WARN, "receivedResponse: Unknown request id: %d", response->id);
         return;
     }
+    log(DEBUG, "receivedResponse: %d: Found waiting request!", response->id);
 
     ConnectionRequest* connectionRequest = it->second;
     m_requests.erase(it);
+    connectionRequest->response = response;
     m_requestMutex->unlock();
 
-    connectionRequest->response = response;
-    log(DEBUG, "receivedResponse: Done with request: %d, signalling", response->id);
+    log(DEBUG, "receivedResponse: %d: Signalling!", response->id);
     connectionRequest->signal->signal();
+    log(DEBUG, "receivedResponse: %d: Done!", response->id);
+
 }
 
 void Connection::addRequest(ConnectionRequest* connectionRequest)
 {
     m_requestMutex->lock();
-    m_requests.insert(make_pair(connectionRequest->request->id, connectionRequest));
+    int id = connectionRequest->request->id;
+    m_requests.insert(make_pair(id, connectionRequest));
     m_requestMutex->unlock();
 }
 
-ClientConnection::ClientConnection(string connectionStr)
+void Connection::closed()
+{
+    if (m_fd != -1)
+    {
+        close(m_fd);
+        m_fd = -1;
+    }
+}
+
+ClientConnection::ClientConnection(const string& connectionStr)
 {
     m_connectionStr = connectionStr;
 }
 
-ClientConnection::~ClientConnection()
-{
-}
+ClientConnection::~ClientConnection() = default;
 
 bool ClientConnection::connect()
 {
     bool res;
-    if (m_connectionStr.substr(0, 5) == "unix:")
+
+    int pos = m_connectionStr.find(':');
+    if (pos == string::npos)
     {
-        log(DEBUG, "connect: Unix socket!");
+        return false;
+    }
+
+    string type = m_connectionStr.substr(0, pos);
+    if (type == "unix")
+    {
         res = connectUnix();
+        if (!res)
+        {
+            return false;
+        }
+    }
+    else if (type == "inet")
+    {
+        res = connectINet();
         if (!res)
         {
             return false;
@@ -166,7 +199,47 @@ bool ClientConnection::connectUnix()
 
 bool ClientConnection::connectINet()
 {
-    return false;
+    string path = m_connectionStr.substr(5);
+    log(DEBUG, "connectInet: path=%s", path.c_str());
+
+    int port = 16523;
+    string host = path;
+
+    int pos = path.find(':');
+    log(DEBUG, "connectINet: pos=%d", pos);
+    if (pos != string::npos)
+    {
+        host = path.substr(0, pos);
+        string portStr = path.substr(pos + 1);
+        port = atoi(portStr.c_str());
+    }
+    log(DEBUG, "connectINet: host=%s, port=%d", host.c_str(), port);
+
+    m_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (m_fd < 0)
+    {
+        log(ERROR, "connectINet: Failed to create socket: %s", strerror(errno));
+        return false;
+    }
+
+    sockaddr_in sa;
+    memset(&sa, 0, sizeof(struct sockaddr_in));
+    hostent* he = gethostbyname(host.c_str());
+    sa.sin_addr = *((struct in_addr *)he->h_addr);
+    sa.sin_port = htons(port);
+
+    int res;
+    res = ::connect(m_fd, reinterpret_cast<const sockaddr*>(&sa), sizeof(sa));
+    if (res == -1)
+    {
+        int err = errno;
+        log(DEBUG, "connectINet: res=%d, errno=%d", res, err);
+        return false;
+    }
+
+    log(DEBUG, "connectINet: connected! (%d)", m_fd);
+
+    return true;
 }
 
 static void randname(char *buf)
@@ -183,6 +256,11 @@ static void randname(char *buf)
 
 ClientSharedMemory* ClientConnection::createSharedMemory(int size)
 {
+    if (!isOpen())
+    {
+        return nullptr;
+    }
+
     ShmAttachRequest request;
 
     int fd = -1;
@@ -222,7 +300,7 @@ ClientSharedMemory* ClientConnection::createSharedMemory(int size)
 
     void* shmaddr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-    return new ClientSharedMemory(this, name, fd, size, shmaddr);
+    return new ClientSharedMemory(name, fd, size, shmaddr);
 }
 
 void ClientConnection::destroySharedMemory(ClientSharedMemory* csm)
@@ -239,10 +317,15 @@ void ClientConnection::destroySharedMemory(ClientSharedMemory* csm)
 
 Event* ClientConnection::eventPoll()
 {
+    if (!isOpen())
+    {
+        return nullptr;
+    }
+
     log(DEBUG, "eventPoll: Polling..");
     EventPollRequest request;
 
-    EventResponse* eventPollResponse = (EventResponse*)send(&request, sizeof(request));
+    auto eventPollResponse = (EventResponse*)send(&request, sizeof(request));
 
     Event* event = nullptr;
     if (eventPollResponse->hasEvent)
@@ -259,18 +342,21 @@ Event* ClientConnection::eventPoll()
 
 Event* ClientConnection::eventWait()
 {
+    if (!isOpen())
+    {
+        return nullptr;
+    }
+
     log(DEBUG, "eventWait: Sending wait request..");
     EventWaitRequest request;
-    EventResponse* eventPollResponse = (EventResponse*)send(&request, sizeof(request));
-
-    log(DEBUG, "eventWait: Received message");
+    auto eventPollResponse = (EventResponse*)send(&request, sizeof(request));
 
     Event* event = nullptr;
     if (eventPollResponse->hasEvent)
     {
         event = new Event();
         memcpy((Event*)event, &(eventPollResponse->event), sizeof(Event));
-        log(DEBUG, "eventPoll: Received event!");
+        log(DEBUG, "eventWait: Received event!");
     }
     else
     {
@@ -283,19 +369,15 @@ Event* ClientConnection::eventWait()
 }
 
 ClientSharedMemory::ClientSharedMemory(
-    ClientConnection* connection,
     string path,
     int fd,
     int size,
     void* addr)
 {
-    m_connection = connection;
     m_path = path;
     m_fd = fd;
     m_size = size;
     m_addr = addr;
 }
 
-ClientSharedMemory::~ClientSharedMemory()
-{
-}
+ClientSharedMemory::~ClientSharedMemory() = default;

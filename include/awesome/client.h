@@ -25,11 +25,13 @@ class Client
 
  public:
     Client(Interface* interface);
-    ~Client();
+    virtual ~Client();
 
     void postEvent(Event* event);
     Event* popEvent();
     Event* waitEvent();
+
+    virtual bool receivedEvent(Event* event) { return true; }
 };
 
 }

@@ -9,9 +9,16 @@
 namespace Awesome
 {
 
+enum MessageFlags
+{
+    MESSAGE_RESPONSE = 0x0,
+    MESSAGE_REQUEST  = 0x1,
+};
+
 enum RequestType
 {
     REQUEST_INFO              = 0x1000,
+    REQUEST_INFO_DISPLAY      = 0x1001,
 
     REQUEST_SHM_ATTACH        = 0x2000,
     REQUEST_SHM_DETACH        = 0x2001,
@@ -28,39 +35,39 @@ enum RequestType
 
 struct Message
 {
-    bool direction;
+    uint16_t messageFlags;
     uint16_t request;
-    uint64_t id;
     uint32_t size;
-} __attribute__((packed));
+    uint64_t id;
+} PACKED;
 
 struct Request : Message
 {
     Request()
     {
-        direction = true;
+        messageFlags = MESSAGE_REQUEST;
     }
-};
+} PACKED;;
 
 struct Response : Message
 {
     bool success;
-    int error;
+    uint32_t error;
 
     Response()
     {
-        direction = false;
+        messageFlags = MESSAGE_RESPONSE;
     }
 
     Response(Request* srcRequest, bool _success, int _error = 0)
     {
-        direction = false;
+        messageFlags = MESSAGE_RESPONSE;
         id = srcRequest->id;
         request = srcRequest->request;
         success = _success;
         error = _error;
     }
-};
+} PACKED;
 
 struct InfoRequest : Request
 {
@@ -85,7 +92,31 @@ struct InfoResponse : Response
     {
         request = REQUEST_INFO;
     }
-};
+} PACKED;
+
+struct InfoDisplayRequest : Request
+{
+    uint32_t display;
+
+    InfoDisplayRequest()
+    {
+        request = REQUEST_INFO_DISPLAY;
+    }
+} PACKED;
+
+struct InfoDisplayResponse : Response
+{
+    uint32_t display;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+
+    InfoDisplayResponse()
+    {
+        request = REQUEST_INFO_DISPLAY;
+    }
+} PACKED;
 
 struct ShmAttachRequest : Request
 {
@@ -96,7 +127,7 @@ struct ShmAttachRequest : Request
     {
         request = REQUEST_SHM_ATTACH;
     }
-};
+} PACKED;
 
 struct ShmDetachRequest : Request
 {
@@ -106,52 +137,81 @@ struct ShmDetachRequest : Request
     {
         request = REQUEST_SHM_DETACH;
     }
-};
+} PACKED;
+
+enum WindowFlags
+{
+    WINDOW_BORDER     = 0x0001,
+    WINDOW_TITLE      = 0x0002,
+    WINDOW_RESIZEABLE = 0x0004,
+    WINDOW_POPUP      = 0x0008,
+    WINDOW_BACKGROUND = 0x0010,
+    WINDOW_FOREGROUND = 0x0020,
+    WINDOW_FULLSCREEN = 0x1000,
+
+    WINDOW_MOTION_EVENTS = 0x2000,
+
+    WINDOW_NORMAL     = WINDOW_BORDER | WINDOW_TITLE | WINDOW_RESIZEABLE
+} PACKED;
 
 struct WindowCreateRequest : Request
 {
-    int width;
-    int height;
-    int flags;
+    int32_t x;
+    int32_t y;
+    int32_t width;
+    int32_t height;
+    uint64_t flags = WINDOW_NORMAL;
+    wchar_t title[100];
 
     WindowCreateRequest()
     {
         request = REQUEST_WINDOW_CREATE;
+        title[0] = 0;
     }
-};
+} PACKED;
 
 struct WindowCreateResponse : Response
 {
-    int windowId;
+    uint64_t windowId;
 
     WindowCreateResponse()
     {
         request = REQUEST_WINDOW_CREATE;
     }
-};
+} PACKED;
+
+struct WindowDestroyResponse : Response
+{
+    uint64_t windowId;
+
+    WindowDestroyResponse()
+    {
+        request = REQUEST_WINDOW_DESTROY;
+    }
+} PACKED;
 
 struct WindowUpdateRequest : Request
 {
-    int windowId;
+    uint64_t windowId;
     char shmPath[256];
 
     WindowUpdateRequest()
     {
         request = REQUEST_WINDOW_UPDATE;
     }
-};
+} PACKED;
 
 struct WindowSetSizeRequest : Request
 {
-    int windowId;
-    int width;
-    int height;
+    uint64_t windowId;
+    int32_t width;
+    int32_t height;
 
     WindowSetSizeRequest()
     {
         request = REQUEST_WINDOW_SET_SIZE;
     }
-};
+} PACKED;
 
 struct EventPollRequest : Request
 {
@@ -159,7 +219,7 @@ struct EventPollRequest : Request
     {
         request = REQUEST_EVENT_POLL;
     }
-};
+} PACKED;
 
 struct EventWaitRequest : Request
 {
@@ -169,7 +229,7 @@ struct EventWaitRequest : Request
     {
         request = REQUEST_EVENT_WAIT;
     }
-};
+} PACKED;
 
 struct EventResponse : Response
 {
@@ -180,7 +240,7 @@ struct EventResponse : Response
     {
         request = REQUEST_EVENT_POLL;
     }
-};
+} PACKED;
 
 
 }

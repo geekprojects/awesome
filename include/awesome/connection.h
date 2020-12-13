@@ -20,14 +20,13 @@ class ConnectionReceiveThread;
 class ClientSharedMemory
 {
  private:
-    ClientConnection* m_connection;
     std::string m_path;
     int m_fd;
     int m_size;
     void* m_addr;
 
  public:
-    ClientSharedMemory(ClientConnection* connection, std::string path, int fd, int size, void* addr);
+    ClientSharedMemory(std::string path, int fd, int size, void* addr);
     ~ClientSharedMemory();
 
     std::string getPath()
@@ -35,17 +34,12 @@ class ClientSharedMemory
         return m_path;
     }
 
-    int getFD() const
-    {
-        return m_fd;
-    }
-
-    int getSize() const
+    [[nodiscard]] int getSize() const
     {
         return m_size;
     }
 
-    void* getAddr() const
+    [[nodiscard]] void* getAddr() const
     {
         return m_addr;
     }
@@ -53,11 +47,21 @@ class ClientSharedMemory
 
 struct ConnectionRequest
 {
-    Request* request;
+    Request* request = nullptr;
     int requestSize;
 
-    Response* response;
-    Geek::CondVar* signal;
+    Response* response = nullptr;
+    Geek::CondVar* signal = nullptr;
+
+    ConnectionRequest()
+    {
+    }
+
+    ~ConnectionRequest()
+    {
+        //delete response;
+        delete signal;
+    }
 };
 
 class ConnectionSendThread : public Geek::Thread, Geek::Logger
@@ -80,6 +84,8 @@ class ConnectionSendThread : public Geek::Thread, Geek::Logger
     bool main() override;
 
     ConnectionRequest* send(Request* request, int size);
+
+    void stop() { m_running = false;}
 };
 
 class ConnectionReceiveThread : public Geek::Thread, Geek::Logger
@@ -93,6 +99,8 @@ class ConnectionReceiveThread : public Geek::Thread, Geek::Logger
     ~ConnectionReceiveThread();
 
     bool main() override;
+
+    void stop() { m_running = false;}
 };
 
 class Connection : public Geek::Logger
@@ -102,14 +110,21 @@ class Connection : public Geek::Logger
     std::map<int, ConnectionRequest*> m_requests;
 
     Geek::Mutex* m_requestMutex;
-    ConnectionSendThread* m_connectionThread = nullptr;
+    ConnectionSendThread* m_connectionSendThread = nullptr;
     ConnectionReceiveThread* m_connectionReceiveThread = nullptr;
+
+    void closed();
+
+    friend ConnectionSendThread;
+    friend ConnectionReceiveThread;
 
  public:
     Connection();
     virtual ~Connection();
 
     bool init();
+
+    bool isOpen() { return m_fd != -1; }
 
     InfoResponse* getInfo();
 
@@ -129,13 +144,11 @@ class ClientConnection : public Connection
  private:
     std::string m_connectionStr;
 
-    ConnectionSendThread* m_connectionThread;
-
     bool connectUnix();
     bool connectINet();
 
  public:
-    explicit ClientConnection(std::string connectionStr);
+    explicit ClientConnection(const std::string& connectionStr);
     ~ClientConnection() override;
 
     bool connect();

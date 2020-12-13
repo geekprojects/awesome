@@ -38,7 +38,6 @@ class AwesomeInterface : public Interface
     static void acceptCallback(evutil_socket_t listener, short event, void *arg);
     void acceptCallback(short event);
 
-
  public:
     explicit AwesomeInterface(DisplayServer* displayServer);
     ~AwesomeInterface() override;
@@ -60,7 +59,10 @@ struct SharedMemory
 class AwesomeClient : public Awesome::Client, Geek::Logger
 {
  private:
+    int m_fd;
     bufferevent* m_bufferEvent;
+    bool m_waitingForEvent = false;
+    int m_waitingForEventRequestId = -1;
 
     std::map<std::string, SharedMemory> m_sharedMemory;
 
@@ -68,6 +70,7 @@ class AwesomeClient : public Awesome::Client, Geek::Logger
     void readCallback(struct bufferevent *bev);
 
     void handleInfoRequest(InfoRequest* infoRequest);
+    void handleInfoDisplayRequest(InfoDisplayRequest* infoRequest);
     void handleSharedMemoryAttach(ShmAttachRequest* request);
     void handleSharedMemoryDetach(ShmDetachRequest* request);
     void handleWindowCreate(WindowCreateRequest* request);
@@ -76,8 +79,10 @@ class AwesomeClient : public Awesome::Client, Geek::Logger
     void handleEventPoll(EventPollRequest* request);
     void handleEventWait(EventWaitRequest* request);
 
+    bool receivedEvent(Event* event) override;
+
  public:
-    AwesomeClient(AwesomeInterface* awesomeInterface, bufferevent* bev);
+    AwesomeClient(AwesomeInterface* awesomeInterface, int fd, bufferevent* bev);
     ~AwesomeClient();
 
     void send(Message* message, int size);
@@ -98,6 +103,8 @@ class AwesomeServerThread : public Geek::Thread, public Geek::Logger
     ~AwesomeServerThread() override;
 
     bool main() override;
+
+    void shutdown();
 };
 
 }
