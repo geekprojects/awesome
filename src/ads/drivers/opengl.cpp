@@ -37,6 +37,43 @@ bool OpenGLDisplay::init()
 {
     glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
     glClearColor(0.0, 0.0, 0.0, 0.0);
+    glMatrixMode(GL_MODELVIEW);
+    // clear the drawing buffer.
+    //glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // clear the identity matrix.
+    glLoadIdentity();
+
+    glPushAttrib(GL_ENABLE_BIT | GL_POLYGON_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_COLOR_MATERIAL);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_TEXTURE_2D);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#if 0
+
+    /* This allows alpha blending of 2D textures with the scene */
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //glBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);
+
+    float scale = 2.0;
+
+    glViewport(0, 0, m_rect.w * scale, m_rect.h * scale);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glOrtho(0.0, (double)m_rect.w * scale, (double)m_rect.h * scale, 0.0, 0.0, 1.0);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+#endif
 
     return true;
 }
@@ -47,7 +84,8 @@ bool OpenGLDisplay::startDraw()
 
     glMatrixMode(GL_MODELVIEW);
     // clear the drawing buffer.
-    glClear(GL_COLOR_BUFFER_BIT);
+    //glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // clear the identity matrix.
     glLoadIdentity();
 
@@ -65,7 +103,7 @@ bool OpenGLDisplay::startDraw()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     //glBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);
 
-    float scale = 2.0;
+    float scale = 1.0;
 
     glViewport(0, 0, m_rect.w * scale, m_rect.h * scale);
 
@@ -90,7 +128,7 @@ bool OpenGLDisplay::draw(Window* window, Geek::Rect drawRect)
 
     if (!data->frameTexture.valid && window->hasFrame())
     {
-        updateTexture(window, data, &(data->frameTexture), window->getFrameSurface());
+        updateTexture(data, &(data->frameTexture), window->getFrameSurface());
     }
 
     Rect rect = window->getContentRect();
@@ -118,7 +156,7 @@ void OpenGLDisplay::drawTexture(const OpenGLWindowTexture* texture, Rect rect)
     glBindTexture(GL_TEXTURE_2D, texture->texture);
     glBegin(GL_TRIANGLE_STRIP);
 
-    float scale = 2.0f;
+    float scale = 1.0f;
     rect.x *= scale;
     rect.y *= scale;
     rect.w *= scale;
@@ -152,12 +190,16 @@ void OpenGLDisplay::endDraw()
     glFlush();
 
     swapBuffers();
+
+    releaseCurrentContext();
 }
 
 void OpenGLDisplay::update(Window* window, Geek::Gfx::Surface* surface)
 {
     OpenGLWindowDisplayData* data = getData(window);
-    updateTexture(window, data, &(data->contentTexture), surface);
+    setCurrentContext();
+    updateTexture(data, &(data->contentTexture), surface);
+    releaseCurrentContext();
 }
 
 void OpenGLDisplay::updateFrame(Window* window)
@@ -166,8 +208,10 @@ void OpenGLDisplay::updateFrame(Window* window)
     {
         return;
     }
+    setCurrentContext();
     OpenGLWindowDisplayData* data = getData(window);
-    updateTexture(window, data, &(data->frameTexture), window->getFrameSurface());
+    updateTexture(data, &(data->frameTexture), window->getFrameSurface());
+    releaseCurrentContext();
 }
 
 OpenGLWindowDisplayData* OpenGLDisplay::getData(Window* window)
@@ -210,8 +254,7 @@ void OpenGLDisplay::updateTexture(OpenGLWindowDisplayData* data, OpenGLWindowTex
     }
 
     texture->surface->blit(0, 0, surface);
-
-    setCurrentContext();
+    texture->surface->saveJPEG("/tmp/texture.jpg");
 
     if (texture->texture == 0)
     {

@@ -43,6 +43,7 @@ class SDLDisplay : public OpenGLDisplay
 
  protected:
     void setCurrentContext() override;
+    void releaseCurrentContext() override;
     void swapBuffers() override;
 
  public:

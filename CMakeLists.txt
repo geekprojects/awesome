@@ -6,9 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(PkgConfig REQUIRED)
 #find_package(Vulkan REQUIRED)
 
-#pkg_check_modules(glfw3 REQUIRED glfw3)
 include(FindOpenGL)
-#include(FindGLUT)
 pkg_check_modules(sdl2 sdl2)
 pkg_check_modules(libevent REQUIRED libevent)
 pkg_check_modules(libevent_pthreads REQUIRED libevent_pthreads)
@@ -44,6 +42,7 @@ list(APPEND ads_srcs
 )
 
 set(DRIVER_LIBRARIES "")
+
 if (sdl2_FOUND)
     list(APPEND ads_srcs
         src/ads/drivers/sdl/sdl.cpp
@@ -53,12 +52,14 @@ if (sdl2_FOUND)
     add_definitions(-DAWESOME_ENGINE_SDL=1)
 endif()
 if (XF86_INCLUDE_PATH)
+    pkg_check_modules(gbm REQUIRED gbm)
+    pkg_check_modules(egl REQUIRED egl)
     list(APPEND ads_srcs
             src/ads/drivers/linuxdrm/linuxdrm.cpp
             src/ads/drivers/linuxdrm/linuxdrm.h
     )
     add_definitions(-I${XF86_INCLUDE_PATH}/drm -DAWESOME_ENGINE_DRM=1)
-    list(APPEND DRIVER_LIBRARIES -ldrm -lrt)
+    list(APPEND DRIVER_LIBRARIES -ldrm ${gbm_LDFLAGS} ${egl_LDFLAGS} -lrt)
 endif()
 
 add_executable(awesome-display-server ${ads_srcs})
@@ -74,7 +75,7 @@ add_library(awesome SHARED
         src/libawesome/connection.cpp
         src/libawesome/connthread.cpp
         )
-target_link_libraries(awesome ${libgeek_LDFLAGS})
+target_link_libraries(awesome ${libgeek_LDFLAGS} -lrt)
 install(DIRECTORY include/awesome DESTINATION include FILES_MATCHING PATTERN "*.h" )
 install(TARGETS awesome DESTINATION lib)
 

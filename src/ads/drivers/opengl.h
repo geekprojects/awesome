@@ -20,7 +20,7 @@
 #include <OpenGL/gl3.h>
 #else
 #include <GL/gl.h>
-#include <GL/gl3.h>
+//#include <GL/gl3.h>
 #endif
 
 namespace Awesome
@@ -63,6 +63,7 @@ class OpenGLDisplay : public Display
     void updateTexture(OpenGLWindowDisplayData* data, OpenGLWindowTexture* texture, Geek::Gfx::Surface* surface);
 
     virtual void setCurrentContext() = 0;
+    virtual void releaseCurrentContext() = 0;
     virtual void swapBuffers() = 0;
 
  public:

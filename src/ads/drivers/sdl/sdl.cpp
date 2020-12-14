@@ -165,7 +165,12 @@ void SDLDisplay::setCurrentContext()
     SDL_GL_MakeCurrent(m_window, m_glContext);
 }
 
+void SDLDisplay::releaseCurrentContext()
+{
+}
+
 void SDLDisplay::swapBuffers()
 {
     SDL_GL_SwapWindow(m_window);
 }
+

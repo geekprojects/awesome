@@ -4,10 +4,19 @@
 #include <awesome/displaydriver.h>
 #include <awesome/display.h>
 
+#include "drivers/opengl.h"
+
 #include <geek/core-thread.h>
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <gbm.h>
+
+#define GL_GLEXT_PROTOTYPES 1
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 
 #include <set>
 
@@ -16,52 +25,52 @@ namespace Awesome
 
 class DRMDisplayDriver;
 
-struct DRMWindowDisplayData : WindowDisplayData
+struct DRMBOData
 {
-    Geek::Mutex* mutex = nullptr;
-
-    Geek::Gfx::Surface* contentSurface = nullptr;
-
-    DRMWindowDisplayData() {}
-    ~DRMWindowDisplayData() override {}
-
+    DRMDisplayDriver* displayDriver;
+    struct gbm_bo* bo;
+    uint32_t fb_id;
 };
 
-class DRMDisplay : public Display
+class DRMDisplay : public OpenGLDisplay
 {
  private:
     drmModeModeInfo m_mode;
     int m_crtc = -1;
-
     uint32_t m_connector;
-    uint32_t m_stride;
-    uint32_t m_size;
-    uint32_t m_handle;
-    uint8_t* m_map;
-    uint32_t m_fb;
 
-    Geek::Gfx::Surface* m_fbSurface;
+    gbm_surface* m_gbmSurface;
+    gbm_bo* m_gbmBo;
+    EGLDisplay m_eglDisplay;
+    EGLConfig m_eglConfig;
+    EGLContext m_eglContext;
+    EGLSurface m_eglSurface;
 
-    DRMWindowDisplayData* getDisplayData(Window* window);
+    DRMBOData* drmFbGetFromBo(gbm_bo *bo);
+
+ protected:
+    void setCurrentContext() override;
+    void releaseCurrentContext() override;
+    void swapBuffers() override;
 
  public:
-    DRMDisplay(DRMDisplayDriver* displayDriver);
-    ~DRMDisplay();
+    explicit DRMDisplay(DRMDisplayDriver* displayDriver);
+    ~DRMDisplay() override;
 
     bool init(drmModeRes* modeRes, drmModeConnector* connector);
 
-    bool startDraw() override;
 
-    bool draw(Window* window, Geek::Rect drawRect) override;
-
+    /*
     void update(Window* window, Geek::Gfx::Surface* surface) override;
+     */
 };
 
-class DRMDisplayDriver : public DisplayDriver
+class DRMDisplayDriver : public OpenGLDisplayDriver
 {
  private:
     int m_drmFD = -1;
     std::set<int> m_availableCrtcs;
+    gbm_device* m_gbmDev{};
 
     void initDisplay(drmModeConnector* conn);
 
@@ -76,6 +85,7 @@ class DRMDisplayDriver : public DisplayDriver
     int getFd() { return m_drmFD; }
 
     std::set<int>& getAvailableCrtcs() { return m_availableCrtcs; }
+    gbm_device* getGbmDev() { return m_gbmDev; }
 };
 
 }
