@@ -39,8 +39,8 @@ int main(int argc, char** argv)
 
         printf("display %u: poa: %d, %d, size: %d, %d\n", i, response->x, response->y, response->width, response->height);
 
-        int scaledWidth = response->width * 2;
-        int scaledHeight = response->height * 2;
+        int scaledWidth = response->width * response->scale;
+        int scaledHeight = response->height * response->scale;
 
         ClientSharedMemory* csm = client->createSharedMemory(scaledWidth * scaledHeight * 4);
 
@@ -68,6 +68,8 @@ int main(int argc, char** argv)
 
         WindowUpdateRequest windowUpdateRequest;
         windowUpdateRequest.windowId = windowCreateResponse->windowId;
+        windowUpdateRequest.width = scaledWidth;
+        windowUpdateRequest.height = scaledHeight;
         strncpy(windowUpdateRequest.shmPath, csm->getPath().c_str(), 256);
         client->send(&windowUpdateRequest, sizeof(windowUpdateRequest));
 

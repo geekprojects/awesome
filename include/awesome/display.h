@@ -28,6 +28,7 @@ class Display : public Geek::Logger
     DisplayDriver* m_displayDriver;
 
     Geek::Rect m_rect;
+    float m_scale = 1.0;
 
  public:
     Display(const std::string& name, DisplayDriver* driver);
@@ -49,6 +50,11 @@ class Display : public Geek::Logger
     void setRect(const Geek::Rect &mRect)
     {
         m_rect = mRect;
+    }
+
+    float getScale() const
+    {
+        return m_scale;
     }
 
 };

@@ -111,6 +111,7 @@ struct InfoDisplayResponse : Response
     uint32_t y;
     uint32_t width;
     uint32_t height;
+    float scale;
 
     InfoDisplayResponse()
     {
@@ -194,6 +195,8 @@ struct WindowUpdateRequest : Request
 {
     uint64_t windowId;
     char shmPath[256];
+    int width;
+    int height;
 
     WindowUpdateRequest()
     {

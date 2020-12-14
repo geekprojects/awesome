@@ -79,7 +79,7 @@ class OpenGLDisplay : public Display
     void update(Window* window, Geek::Gfx::Surface* surface) override;
     void updateFrame(Window* window) override;
 
-    static void drawTexture(const OpenGLWindowTexture* texture, Geek::Rect rect);
+    void drawTexture(const OpenGLWindowTexture* texture, Geek::Rect rect);
 };
 
 }

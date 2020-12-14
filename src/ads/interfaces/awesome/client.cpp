@@ -177,6 +177,8 @@ void AwesomeClient::handleInfoDisplayRequest(InfoDisplayRequest* request)
     response.y = display->getRect().y;
     response.width = display->getRect().w;
     response.height = display->getRect().h;
+    response.scale = display->getScale();
+
     send(&response, sizeof(response));
 }
 
@@ -263,10 +265,9 @@ void AwesomeClient::handleWindowUpdate(WindowUpdateRequest* request)
         return;
     }
 
-    float scale = 2.0f;
     Surface* surface = new Surface(
-        window->getContentRect().w * scale,
-        window->getContentRect().h * scale,
+        request->width,
+        request->height,
         4,
         (uint8_t*)it->second.addr);
 

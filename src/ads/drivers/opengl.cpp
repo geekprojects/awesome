@@ -103,15 +103,13 @@ bool OpenGLDisplay::startDraw()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     //glBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);
 
-    float scale = 1.0;
-
-    glViewport(0, 0, m_rect.w * scale, m_rect.h * scale);
+    glViewport(0, 0, m_rect.w * m_scale, m_rect.h * m_scale);
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
 
-    glOrtho(0.0, (double)m_rect.w * scale, (double)m_rect.h * scale, 0.0, 0.0, 1.0);
+    glOrtho(0.0, (double)m_rect.w * m_scale, (double)m_rect.h * m_scale, 0.0, 0.0, 1.0);
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
 
     glMatrixMode(GL_MODELVIEW);
@@ -156,11 +154,10 @@ void OpenGLDisplay::drawTexture(const OpenGLWindowTexture* texture, Rect rect)
     glBindTexture(GL_TEXTURE_2D, texture->texture);
     glBegin(GL_TRIANGLE_STRIP);
 
-    float scale = 1.0f;
-    rect.x *= scale;
-    rect.y *= scale;
-    rect.w *= scale;
-    rect.h *= scale;
+    rect.x *= m_scale;
+    rect.y *= m_scale;
+    rect.w *= m_scale;
+    rect.h *= m_scale;
 
     glTexCoord2f(0, 0);
     glVertex2i(rect.x, rect.y);
@@ -234,12 +231,10 @@ void OpenGLDisplay::updateTexture(OpenGLWindowDisplayData* data, OpenGLWindowTex
     int winWidth = surface->getWidth();
     int winHeight = surface->getHeight();
 
-    int scale = 1;
-
-    unsigned int textureWidth = powerOfTwo(winWidth * scale);
-    unsigned int textureHeight = powerOfTwo(winHeight * scale);
-    texture->coordX = (float)(winWidth * scale) / (float)textureWidth;
-    texture->coordY = (float)(winHeight * scale) / (float)textureHeight;
+    unsigned int textureWidth = powerOfTwo(winWidth * 1);
+    unsigned int textureHeight = powerOfTwo(winHeight * 1);
+    texture->coordX = (float)(winWidth * 1) / (float)textureWidth;
+    texture->coordY = (float)(winHeight * 1) / (float)textureHeight;
 
     if (texture->surface == nullptr ||
         texture->surface->getWidth() != textureWidth ||

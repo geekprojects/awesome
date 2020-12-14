@@ -136,7 +136,7 @@ bool SDLDisplay::init()
     unsigned int flags =
         SDL_WINDOW_OPENGL |
         SDL_WINDOW_SHOWN |
-        SDL_WINDOW_ALLOW_HIGHDPI ;
+        SDL_WINDOW_ALLOW_HIGHDPI;
 
     log(DEBUG, "init: Creating window...");
     m_window = SDL_CreateWindow(
@@ -152,6 +152,12 @@ bool SDLDisplay::init()
         log( ERROR, "open: Failed to open window: %s", SDL_GetError());
         return false;
     }
+
+    int drawableWidth;
+    int drawableHeight;
+    SDL_GL_GetDrawableSize(m_window, &drawableWidth, &drawableHeight);
+    m_scale = drawableWidth / m_rect.w;
+    log(DEBUG, "init: window: %d, %d  drawable: %d, %d  scale=%0.2f", m_rect.w, m_rect.h, drawableWidth, drawableHeight, m_scale);
 
     m_glContext = SDL_GL_CreateContext(m_window);
 
