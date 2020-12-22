@@ -37,14 +37,14 @@ class DRMDisplay : public OpenGLDisplay
  private:
     drmModeModeInfo m_mode;
     int m_crtc = -1;
-    uint32_t m_connector;
+    uint32_t m_connector = 0;
 
-    gbm_surface* m_gbmSurface;
-    gbm_bo* m_gbmBo;
-    EGLDisplay m_eglDisplay;
-    EGLConfig m_eglConfig;
-    EGLContext m_eglContext;
-    EGLSurface m_eglSurface;
+    gbm_surface* m_gbmSurface = nullptr;
+    gbm_bo* m_gbmBo = nullptr;
+    EGLDisplay m_eglDisplay = nullptr;
+    EGLConfig m_eglConfig = nullptr;
+    EGLContext m_eglContext = nullptr;
+    EGLSurface m_eglSurface = nullptr;
 
     DRMBOData* drmFbGetFromBo(gbm_bo *bo);
 
@@ -58,11 +58,6 @@ class DRMDisplay : public OpenGLDisplay
     ~DRMDisplay() override;
 
     bool init(drmModeRes* modeRes, drmModeConnector* connector);
-
-
-    /*
-    void update(Window* window, Geek::Gfx::Surface* surface) override;
-     */
 };
 
 class DRMDisplayDriver : public OpenGLDisplayDriver

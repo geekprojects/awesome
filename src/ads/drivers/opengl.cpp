@@ -35,7 +35,6 @@ OpenGLDisplay::~OpenGLDisplay() = default;
 
 bool OpenGLDisplay::init()
 {
-    glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
     glClearColor(0.0, 0.0, 0.0, 0.0);
     glMatrixMode(GL_MODELVIEW);
     // clear the drawing buffer.
@@ -50,30 +49,6 @@ bool OpenGLDisplay::init()
     glDisable(GL_COLOR_MATERIAL);
     glDisable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
-
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-#if 0
-
-    /* This allows alpha blending of 2D textures with the scene */
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    //glBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);
-
-    float scale = 2.0;
-
-    glViewport(0, 0, m_rect.w * scale, m_rect.h * scale);
-
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-
-    glOrtho(0.0, (double)m_rect.w * scale, (double)m_rect.h * scale, 0.0, 0.0, 1.0);
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
-
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-#endif
 
     return true;
 }
@@ -249,7 +224,6 @@ void OpenGLDisplay::updateTexture(OpenGLWindowDisplayData* data, OpenGLWindowTex
     }
 
     texture->surface->blit(0, 0, surface);
-    texture->surface->saveJPEG("/tmp/texture.jpg");
 
     if (texture->texture == 0)
     {

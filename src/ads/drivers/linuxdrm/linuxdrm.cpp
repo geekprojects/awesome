@@ -12,49 +12,6 @@ using namespace Awesome;
 using namespace Geek;
 using namespace Geek::Gfx;
 
-GLfloat rotTri = 0, rotQuad = 0;
-
-static uint32_t find_crtc_for_encoder(const drmModeRes *resources,
-                                      const drmModeEncoder *encoder) {
-    int i;
-
-    for (i = 0; i < resources->count_crtcs; i++) {
-        /* possible_crtcs is a bitmask as described here:
-         * https://dvdhrm.wordpress.com/2012/09/13/linux-drm-mode-setting-api
-         */
-        const uint32_t crtc_mask = 1 << i;
-        const uint32_t crtc_id = resources->crtcs[i];
-        if (encoder->possible_crtcs & crtc_mask) {
-            return crtc_id;
-        }
-    }
-
-    /* no match found */
-    return -1;
-}
-
-static uint32_t find_crtc_for_connector(int fd, const drmModeRes *resources,
-                                        const drmModeConnector *connector) {
-    int i;
-
-    for (i = 0; i < connector->count_encoders; i++) {
-        const uint32_t encoder_id = connector->encoders[i];
-        drmModeEncoder *encoder = drmModeGetEncoder(fd, encoder_id);
-
-        if (encoder) {
-            const uint32_t crtc_id = find_crtc_for_encoder(resources, encoder);
-
-            drmModeFreeEncoder(encoder);
-            if (crtc_id != 0) {
-                return crtc_id;
-            }
-        }
-    }
-
-    /* no match found */
-    return -1;
-}
-
 DRMDisplayDriver::DRMDisplayDriver(DisplayServer* displayServer) : OpenGLDisplayDriver("DRM", displayServer)
 {
 }
@@ -73,19 +30,7 @@ bool DRMDisplayDriver::init()
     }
 
     m_gbmDev = gbm_create_device(m_drmFD);
-    log(DEBUG, "init: m_gbmDev=%p", m_gbmDev);
-
-    int res;
-    /*
-    uint64_t hasDumb;
-    res = drmGetCap(m_drmFD, DRM_CAP_DUMB_BUFFER, &hasDumb);
-    log(DEBUG, "init: hasDumb=%d", hasDumb);
-    if (res < 0 || !hasDumb)
-    {
-        log(ERROR, "DRM device does not support dumb buffers");
-        return false;
-    }
-     */
+    log(DEBUG, "init: m_gbmDev=%p, backend=%s", m_gbmDev, gbm_device_get_backend_name(m_gbmDev));
 
     drmModeRes* modeRes;
     modeRes = drmModeGetResources(m_drmFD);
@@ -106,11 +51,13 @@ bool DRMDisplayDriver::init()
 
         if (conn->connection != DRM_MODE_CONNECTED || conn->count_modes == 0)
         {
+            drmModeFreeConnector(conn);
             continue;
         }
 
         DRMDisplay* display = new DRMDisplay(this);
-        res = display->init(modeRes, conn);
+        int res = display->init(modeRes, conn);
+        drmModeFreeConnector(conn);
         if (!res)
         {
             continue;
@@ -172,43 +119,31 @@ bool DRMDisplay::init(drmModeRes* modeRes, drmModeConnector* conn)
         enc = NULL;
     }
 
-    if (false && enc != nullptr)
+    for (i = 0; i < conn->count_encoders; i++)
     {
-        m_crtc = enc->crtc_id;
-        displayDriver->getAvailableCrtcs().insert(m_crtc);
-    }
-    else
-    {
-#if 1
-        //int i;
-        for (i = 0; i < conn->count_encoders; i++)
+        drmModeEncoder* enc = drmModeGetEncoder(displayDriver->getFd(), conn->encoders[i]);
+        if (enc == nullptr)
         {
-            drmModeEncoder* enc = drmModeGetEncoder(displayDriver->getFd(), conn->encoders[i]);
-            if (enc == nullptr)
+            continue;
+        }
+
+        int j;
+        for (j = 0; j < modeRes->count_crtcs; j++)
+        {
+            if (!(enc->possible_crtcs & (1 << j)))
             {
                 continue;
             }
 
-            int j;
-            for (j = 0; j < modeRes->count_crtcs; j++)
+            int c = modeRes->crtcs[j];
+            if (displayDriver->getAvailableCrtcs().count(c) == 0)
             {
-                if (!(enc->possible_crtcs & (1 << j)))
-                {
-                    continue;
-                }
-
-                int c = modeRes->crtcs[j];
-                if (displayDriver->getAvailableCrtcs().count(c) == 0)
-                {
-                    m_crtc = c;
-                    displayDriver->getAvailableCrtcs().insert(c);
-                    break;
-                }
+                m_crtc = c;
+                displayDriver->getAvailableCrtcs().insert(c);
+                break;
             }
-            drmModeFreeEncoder(enc);
         }
-#endif
-        //m_crtc = find_crtc_for_connector(displayDriver->getFd(), modeRes, conn);
+        drmModeFreeEncoder(enc);
     }
 
     if (m_crtc == -1)
@@ -309,7 +244,7 @@ bool DRMDisplay::init(drmModeRes* modeRes, drmModeConnector* conn)
     log(INFO, "init: GL Extensions: \"%s\"", glGetString(GL_EXTENSIONS));
 
     glClearColor(0.5, 0.5, 0.5, 1.0);
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH);
     eglSwapBuffers(m_eglDisplay, m_eglSurface);
 
     m_gbmBo = gbm_surface_lock_front_buffer(m_gbmSurface);
@@ -343,7 +278,6 @@ static void drm_fb_destroy_callback(gbm_bo *bo, void *data)
 {
     printf("drm_fb_destroy_callback: bo=%p\n", bo);
     DRMBOData* fb = static_cast<DRMBOData*>(data);
-    gbm_device *gbm = gbm_bo_get_device(bo);
 
     if (fb->fb_id)
     {
@@ -377,7 +311,7 @@ DRMBOData* DRMDisplay::drmFbGetFromBo(gbm_bo* bo)
     {
         printf("failed to create fb: %s\n", strerror(errno));
         free(fb);
-        return NULL;
+        return nullptr;
     }
     fb->displayDriver = dynamic_cast<DRMDisplayDriver*>(m_displayDriver);
 
@@ -404,22 +338,16 @@ static void page_flip_handler(
 
 void DRMDisplay::swapBuffers()
 {
-    log(DEBUG, "swapBuffers: Swapping.. (display=%p, surface=%p)", m_eglDisplay, m_eglSurface);
     int res;
     eglSwapBuffers(m_eglDisplay, m_eglSurface);
 
     gbm_bo* next_bo = gbm_surface_lock_front_buffer(m_gbmSurface);
-    log(DEBUG, "swapBuffers: Next buffer: %p", next_bo);
     if (next_bo == nullptr)
     {
+        log(ERROR, "swapBuffers: Failed to get next buffer object");
         return;
     }
     DRMBOData* fb = drmFbGetFromBo(next_bo);
-
-    /*
-     * Here you could also update drm plane layers if you want
-     * hw composition
-     */
 
     int waiting_for_flip = 1;
     int fd = ((DRMDisplayDriver*)m_displayDriver)->getFd();
