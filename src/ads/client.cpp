@@ -17,8 +17,6 @@ Client::~Client() = default;
 
 void Client::postEvent(Event* event)
 {
-    printf("Client::postEvent: %p: Posting!\n", this);
-
     bool queue = receivedEvent(event);
     if (!queue)
     {
@@ -53,13 +51,10 @@ Event* Client::waitEvent()
         Event* event = popEvent();
         if (event != nullptr)
         {
-            printf("Client::waitEvent: %p: Got event!\n", this);
             return event;
         }
 
-        printf("Client::waitEvent: %p: Waiting...\n", this);
         m_eventsSignal->wait();
-        printf("Client::waitEvent: %p: Woken!\n", this);
     }
 }
 
