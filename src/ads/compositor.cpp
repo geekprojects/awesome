@@ -18,12 +18,23 @@ void Compositor::addWindow(Window* window)
 {
     Rect windowRect = window->getRect();
 
+    Vector2D pos = window->getPosition();
+    if (pos.x == WINDOW_POSITION_ANY || pos.y == WINDOW_POSITION_ANY)
+    {
+        if (pos.x == WINDOW_POSITION_ANY)
+        {
+            pos.x = 50;
+        }
+        if (pos.y == WINDOW_POSITION_ANY)
+        {
+            pos.y = 50;
+        }
+        window->setPosition(pos);
+    }
+
     m_windowMutex->lock();
     window->setId(m_windowIdx++);
     m_windows.push_back(window);
-    m_windowMutex->unlock();
-
-    bringToFront(window);
 
     for (Display* display : m_displayServer->getDisplays())
     {
@@ -33,6 +44,10 @@ void Compositor::addWindow(Window* window)
             window->setWindowDisplayData(display, nullptr);
         }
     }
+    m_windowMutex->unlock();
+
+    bringToFront(window);
+    m_displayServer->getDrawSignal()->signal();
 }
 
 void Compositor::draw(Display* display)
@@ -68,6 +83,11 @@ void Compositor::draw(Display* display)
 
 void Compositor::drawWindow(Display* display, const Rect &displayRect, Window* window)
 {
+    if (!window->isVisible())
+    {
+        return;
+    }
+
     Rect windowRect = window->getRect();
     if (displayRect.intersects(windowRect))
     {
@@ -251,7 +271,7 @@ static Window* findWindowAt(const deque<Window*>& windowOrder, const Vector2D& p
 {
     for (Window* window : windowOrder)
     {
-        if (window->getRect().contains(pos))
+        if (window->isVisible() && window->getRect().contains(pos))
         {
             return window;
         }

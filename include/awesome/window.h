@@ -22,7 +22,7 @@ class Window : public Geek::Logger
  private:
     int m_id = 0;
     unsigned int m_flags = 0;
-    bool m_visible = true;
+    bool m_visible = false;
     std::wstring m_title;
 
     DisplayServer* m_displayServer = nullptr;

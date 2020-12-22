@@ -74,8 +74,10 @@ class AwesomeClient : public Awesome::Client, Geek::Logger
     void handleSharedMemoryAttach(ShmAttachRequest* request);
     void handleSharedMemoryDetach(ShmDetachRequest* request);
     void handleWindowCreate(WindowCreateRequest* request);
+    void handleWindowDestroy(WindowDestroyRequest* request);
     void handleWindowUpdate(WindowUpdateRequest* request);
     void handleWindowSetSize(WindowSetSizeRequest* request);
+    void handleWindowSetVisible(WindowSetVisibleRequest* request);
     void handleEventPoll(EventPollRequest* request);
     void handleEventWait(EventWaitRequest* request);
 

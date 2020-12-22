@@ -49,7 +49,6 @@ void AwesomeClient::readCallback(bufferevent* bev)
     evbuffer_remove(input, buffer, len);
     Request* request = (Request*)buffer;
 
-    //log(DEBUG, "readCallback: request type: 0x%x, id: %d", request->request, request->id);
     if (!(request->messageFlags & MESSAGE_REQUEST))
     {
         log(ERROR, "readCallback: Received response message?");
@@ -85,6 +84,10 @@ void AwesomeClient::readCallback(bufferevent* bev)
 
         case REQUEST_WINDOW_SET_SIZE:
             handleWindowSetSize((WindowSetSizeRequest*)request);
+            break;
+
+        case REQUEST_WINDOW_SET_VISIBLE:
+            handleWindowSetVisible((WindowSetVisibleRequest*)request);
             break;
 
         case REQUEST_EVENT_POLL:
@@ -137,8 +140,6 @@ void AwesomeClient::errorCallback(bufferevent* bev, short error)
 
 void AwesomeClient::handleInfoRequest(InfoRequest* request)
 {
-    log(DEBUG, "handleInfoRequest: REQUEST_INFO: Sending info!");
-
     InfoResponse response;
     response.request = REQUEST_INFO;
     response.id = request->id;
@@ -159,7 +160,6 @@ void AwesomeClient::handleInfoRequest(InfoRequest* request)
 void AwesomeClient::handleInfoDisplayRequest(InfoDisplayRequest* request)
 {
     vector<Display*> displays = m_interface->getDisplayServer()->getDisplays();
-    log(DEBUG, "handleInfoDisplayRequest: display=%d, displays=%d", request->display, displays.size());
     if (request->display >= displays.size())
     {
         Response response(request, false);
@@ -184,8 +184,6 @@ void AwesomeClient::handleInfoDisplayRequest(InfoDisplayRequest* request)
 
 void AwesomeClient::handleSharedMemoryAttach(ShmAttachRequest* request)
 {
-    log(DEBUG, "handleSharedMemoryAttach: path=%s", request->path);
-
     int fd = shm_open(request->path, O_RDONLY, 0666);
     if (fd == -1)
     {
@@ -198,7 +196,6 @@ void AwesomeClient::handleSharedMemoryAttach(ShmAttachRequest* request)
     SharedMemory sharedMemory;
     sharedMemory.addr = mmap(nullptr, request->size, PROT_READ , MAP_SHARED, fd, 0);
     sharedMemory.size = request->size;
-    log(DEBUG, "handleSharedMemoryAttach: addr=%p", sharedMemory.addr);
 
     m_sharedMemory.insert(make_pair(request->path, sharedMemory));
 
@@ -227,14 +224,13 @@ void AwesomeClient::handleSharedMemoryDetach(ShmDetachRequest* request)
 void AwesomeClient::handleWindowCreate(WindowCreateRequest* request)
 {
     Window* window = new Window(m_interface->getDisplayServer(), this);
-    window->setPosition(Vector2D(0, 0));
+    window->setPosition(Vector2D(request->x, request->y));
     window->setFlags(request->flags);
     window->setTitle(request->title);
     window->setContentSize(request->width, request->height);
+    window->setVisible(request->visible & 1);
 
     m_interface->getDisplayServer()->getCompositor()->addWindow(window);
-
-    log(DEBUG, "handleWindowCreate: windowId=%d, width=%d, height=%d, title: %ls", window->getId(), request->width, request->height, window->getTitle().c_str());
 
     WindowCreateResponse response;
     response.id = request->id;
@@ -244,9 +240,31 @@ void AwesomeClient::handleWindowCreate(WindowCreateRequest* request)
     send(&response, sizeof(response));
 }
 
+void AwesomeClient::handleWindowDestroy(WindowDestroyRequest* request)
+{
+    Window* window = getWindow(request->windowId);
+    if (window == nullptr)
+    {
+        log(ERROR, "handleWindowDestroy: Invalid windowId: %d", request->windowId);
+        Response response(request, false);
+        send(&response, sizeof(response));
+        return;
+    }
+
+    m_interface->getDisplayServer()->getCompositor()->removeWindow(window);
+
+    // TODO: DELETE WINDOW!
+
+    WindowDestroyResponse response;
+    response.id = request->id;
+    response.success = true;
+    response.windowId = window->getId();
+
+    send(&response, sizeof(response));
+}
+
 void AwesomeClient::handleWindowUpdate(WindowUpdateRequest* request)
 {
-    log(DEBUG, "handleWindowUpdate: windowId=%d, shmPath=%s", request->windowId, request->shmPath);
     Window* window = getWindow(request->windowId);
     if (window == nullptr)
     {
@@ -272,13 +290,12 @@ void AwesomeClient::handleWindowUpdate(WindowUpdateRequest* request)
         (uint8_t*)it->second.addr);
 
     window->update(surface);
-
-    m_interface->getDisplayServer()->getDrawSignal()->signal();
-
     delete surface;
 
     Response response(request, true);
     send(&response, sizeof(response));
+
+    m_interface->getDisplayServer()->getDrawSignal()->signal();
 }
 
 Window* AwesomeClient::getWindow(int windowId) const
@@ -289,7 +306,6 @@ Window* AwesomeClient::getWindow(int windowId) const
 
 void AwesomeClient::handleWindowSetSize(WindowSetSizeRequest* request)
 {
-    log(DEBUG, "handleWindowSetSize: windowId=%d, size=%d, %d", request->windowId, request->width, request->height);
     Window* window = getWindow(request->windowId);
     if (window == nullptr)
     {
@@ -300,6 +316,24 @@ void AwesomeClient::handleWindowSetSize(WindowSetSizeRequest* request)
     }
 
     window->setContentSize(request->width, request->height);
+
+    Response response(request, true);
+    send(&response, sizeof(response));
+}
+
+void AwesomeClient::handleWindowSetVisible(WindowSetVisibleRequest* request)
+{
+    Window* window = getWindow(request->windowId);
+    if (window == nullptr)
+    {
+        log(ERROR, "handleWindowSetVisible: Invalid windowId: %d", request->windowId);
+        Response response(request, false);
+        send(&response, sizeof(response));
+        return;
+    }
+
+    window->setVisible(request->visible & 1);
+    m_interface->getDisplayServer()->getDrawSignal()->signal();
 
     Response response(request, true);
     send(&response, sizeof(response));
@@ -323,7 +357,6 @@ void AwesomeClient::handleEventPoll(EventPollRequest* request)
     response.hasEvent = true;
     response.event = *event;
 
-    log(DEBUG, "handleEventPoll: Found event!");
     send(&response, sizeof(response));
 }
 
@@ -343,14 +376,12 @@ void AwesomeClient::handleEventWait(EventWaitRequest* request)
         return;
     }
 
-    log(DEBUG, "handleEventWait: %p: No current event, waiting...", this);
     m_waitingForEvent = true;
     m_waitingForEventRequestId = request->id;
 }
 
 void AwesomeClient::send(Message* message, int size)
 {
-    log(DEBUG, "send: %p: Sending %d bytes", this, size);
     message->size = size;
 
     bufferevent_write(m_bufferEvent, message, size);
@@ -365,7 +396,6 @@ void AwesomeClient::send(Message* message, int size)
 
 bool AwesomeClient::receivedEvent(Event* event)
 {
-    log(DEBUG, "receivedEvent: %p: waiting=%d", this, m_waitingForEvent);
     if (m_waitingForEvent)
     {
         EventResponse response;
@@ -375,7 +405,6 @@ bool AwesomeClient::receivedEvent(Event* event)
         response.hasEvent = true;
         response.event = *event;
 
-        log(DEBUG, "receivedEvent: Sending...");
         send(&response, sizeof(response));
         m_waitingForEvent = false;
         return false;
@@ -383,5 +412,7 @@ bool AwesomeClient::receivedEvent(Event* event)
 
     return true;
 }
+
+
 
 
