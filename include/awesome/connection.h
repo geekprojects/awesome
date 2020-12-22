@@ -113,8 +113,6 @@ class Connection : public Geek::Logger
     ConnectionSendThread* m_connectionSendThread = nullptr;
     ConnectionReceiveThread* m_connectionReceiveThread = nullptr;
 
-    void closed();
-
     friend ConnectionSendThread;
     friend ConnectionReceiveThread;
 
@@ -123,8 +121,9 @@ class Connection : public Geek::Logger
     virtual ~Connection();
 
     bool init();
+    void close();
 
-    bool isOpen() { return m_fd != -1; }
+    [[nodiscard]] bool isOpen() const { return m_fd != -1; }
 
     InfoResponse* getInfo();
 
@@ -133,7 +132,7 @@ class Connection : public Geek::Logger
     void addRequest(ConnectionRequest* request);
     void receivedResponse(Response* response);
 
-    int getFD() const
+    [[nodiscard]] int getFD() const
     {
         return m_fd;
     }

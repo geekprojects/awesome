@@ -32,7 +32,6 @@ bool ConnectionSendThread::main()
             m_requestMutex->lock();
             if (!m_requestQueue.empty())
             {
-                log(DEBUG, "main: Got message to send");
                 ConnectionRequest* request = m_requestQueue.front();
                 m_requestQueue.pop_front();
 
@@ -52,19 +51,16 @@ bool ConnectionSendThread::main()
             }
         }
 
-        log(DEBUG, "main: Waiting for message");
         m_requestSignal->wait();
-        log(DEBUG, "main: Woken up!");
     }
 
-    m_connection->closed();
+    m_connection->close();
 
     return true;
 }
 
 ConnectionRequest* ConnectionSendThread::send(Request* request, int size)
 {
-    log(DEBUG, "send: Queuing...");
     m_requestMutex->lock();
     request->id = m_messageId++;
     request->size = size;
@@ -81,10 +77,8 @@ ConnectionRequest* ConnectionSendThread::send(Request* request, int size)
 
     m_requestMutex->unlock();
 
-    log(DEBUG, "send: Signalling...");
     m_requestSignal->signal();
 
-    log(DEBUG, "send: Done!");
     return connectionRequest;
 }
 
@@ -98,7 +92,6 @@ ConnectionReceiveThread::~ConnectionReceiveThread() = default;
 bool ConnectionReceiveThread::main()
 {
     int fd = m_connection->getFD();
-    log(DEBUG, "main: Starting up... (fd=%d)", fd);
 
     fd_set fdSet;
     FD_ZERO (&fdSet);
@@ -176,7 +169,6 @@ bool ConnectionReceiveThread::main()
         }
 #else
         char buffer[4096];
-        log(DEBUG, "main: Reading...");
         int res;
         //res = ::read(fd, buffer, 4096);
         res = ::recv(fd, buffer, 4096, 0);
@@ -214,14 +206,14 @@ bool ConnectionReceiveThread::main()
             memcpy(messageBuffer, msgPtr, msgPtr->size);
             remaining -= msgPtr->size;
 
-            log(DEBUG, "main: Read %d byte message, id=%d", msgPtr->size, msgPtr->id);
+            //log(DEBUG, "main: Read %d byte message, id=%d", msgPtr->size, msgPtr->id);
             m_connection->receivedResponse((Response*)messageBuffer);
         }
 
 #endif
     }
 
-    m_connection->closed();
+    m_connection->close();
 
     return true;
 }

@@ -20,13 +20,7 @@ Connection::Connection() : Logger("Connection")
 
 Connection::~Connection()
 {
-    m_connectionReceiveThread->stop();
-    m_connectionSendThread->stop();
-
-    if (m_fd != -1)
-    {
-        close(m_fd);
-    }
+    close();
 }
 
 bool Connection::init()
@@ -38,6 +32,29 @@ bool Connection::init()
     m_connectionReceiveThread->start();
 
     return true;
+}
+
+void Connection::close()
+{
+    if (m_fd != -1)
+    {
+        ::close(m_fd);
+    }
+
+    m_fd = -1;
+
+    m_connectionReceiveThread->stop();
+    m_connectionSendThread->stop();
+
+    m_requestMutex->lock();
+
+    for (auto it : m_requests)
+    {
+        it.second->signal->signal();
+    }
+    m_requests.clear();
+
+    m_requestMutex->unlock();
 }
 
 InfoResponse* Connection::getInfo()
@@ -75,7 +92,6 @@ Response* Connection::send(Request* message, int size)
     m_requestMutex->unlock();
     if (response == nullptr)
     {
-        //log(DEBUG, "send: Waiting for response signal: id=%d", connectionRequest->request->id);
         connectionRequest->signal->wait();
     }
     else
@@ -91,7 +107,6 @@ Response* Connection::send(Request* message, int size)
 
 void Connection::receivedResponse(Response* response)
 {
-    log(DEBUG, "receivedResponse: %d: locking...", response->id);
     m_requestMutex->lock();
 
     auto it = m_requests.find(response->id);
@@ -101,16 +116,13 @@ void Connection::receivedResponse(Response* response)
         log(WARN, "receivedResponse: Unknown request id: %d", response->id);
         return;
     }
-    log(DEBUG, "receivedResponse: %d: Found waiting request!", response->id);
 
     ConnectionRequest* connectionRequest = it->second;
     m_requests.erase(it);
     connectionRequest->response = response;
     m_requestMutex->unlock();
 
-    log(DEBUG, "receivedResponse: %d: Signalling!", response->id);
     connectionRequest->signal->signal();
-    log(DEBUG, "receivedResponse: %d: Done!", response->id);
 
 }
 
@@ -120,15 +132,6 @@ void Connection::addRequest(ConnectionRequest* connectionRequest)
     int id = connectionRequest->request->id;
     m_requests.insert(make_pair(id, connectionRequest));
     m_requestMutex->unlock();
-}
-
-void Connection::closed()
-{
-    if (m_fd != -1)
-    {
-        close(m_fd);
-        m_fd = -1;
-    }
 }
 
 ClientConnection::ClientConnection(const string& connectionStr)
@@ -322,7 +325,6 @@ Event* ClientConnection::eventPoll()
         return nullptr;
     }
 
-    log(DEBUG, "eventPoll: Polling..");
     EventPollRequest request;
 
     auto eventPollResponse = (EventResponse*)send(&request, sizeof(request));
@@ -332,7 +334,6 @@ Event* ClientConnection::eventPoll()
     {
         event = new Event();
         memcpy((Event*)event, &(eventPollResponse->event), sizeof(Event));
-        log(DEBUG, "eventPoll: Received event!");
     }
 
     free(eventPollResponse);
@@ -347,16 +348,18 @@ Event* ClientConnection::eventWait()
         return nullptr;
     }
 
-    log(DEBUG, "eventWait: Sending wait request..");
     EventWaitRequest request;
     auto eventPollResponse = (EventResponse*)send(&request, sizeof(request));
+    if (eventPollResponse == nullptr)
+    {
+        return nullptr;
+    }
 
     Event* event = nullptr;
     if (eventPollResponse->hasEvent)
     {
         event = new Event();
         memcpy((Event*)event, &(eventPollResponse->event), sizeof(Event));
-        log(DEBUG, "eventWait: Received event!");
     }
     else
     {
