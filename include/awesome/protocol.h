@@ -2,6 +2,7 @@
 #define AWESOME_PROTOCOL_H
 
 #include <stdint.h>
+#include <limits.h>
 #include "event.h"
 
 #define PACKED __attribute__((packed))
@@ -27,6 +28,7 @@ enum RequestType
     REQUEST_WINDOW_DESTROY    = 0x3001,
     REQUEST_WINDOW_UPDATE     = 0x3002,
     REQUEST_WINDOW_SET_SIZE   = 0x3003,
+    REQUEST_WINDOW_SET_VISIBLE = 0x3004,
 
     REQUEST_EVENT_POLL        = 0x4000,
     REQUEST_EVENT_WAIT        = 0x4001
@@ -152,16 +154,21 @@ enum WindowFlags
 
     WINDOW_MOTION_EVENTS = 0x2000,
 
+    WINDOW_MENU_BAR   = 0x8000,
+
     WINDOW_NORMAL     = WINDOW_BORDER | WINDOW_TITLE | WINDOW_RESIZEABLE
 } PACKED;
 
+#define WINDOW_POSITION_ANY -INT_MAX
+
 struct WindowCreateRequest : Request
 {
-    int32_t x;
-    int32_t y;
+    int32_t x = WINDOW_POSITION_ANY;
+    int32_t y = WINDOW_POSITION_ANY;
     int32_t width;
     int32_t height;
     uint64_t flags = WINDOW_NORMAL;
+    uint8_t visible = true;
     wchar_t title[100];
 
     WindowCreateRequest()
@@ -178,6 +185,16 @@ struct WindowCreateResponse : Response
     WindowCreateResponse()
     {
         request = REQUEST_WINDOW_CREATE;
+    }
+} PACKED;
+
+struct WindowDestroyRequest : Request
+{
+    uint64_t windowId;
+
+    WindowDestroyRequest()
+    {
+        request = REQUEST_WINDOW_DESTROY;
     }
 } PACKED;
 
@@ -213,6 +230,17 @@ struct WindowSetSizeRequest : Request
     WindowSetSizeRequest()
     {
         request = REQUEST_WINDOW_SET_SIZE;
+    }
+} PACKED;
+
+struct WindowSetVisibleRequest : Request
+{
+    uint64_t windowId;
+    uint8_t visible;
+
+    WindowSetVisibleRequest()
+    {
+        request = REQUEST_WINDOW_SET_VISIBLE;
     }
 } PACKED;
 
