@@ -42,6 +42,7 @@ class DisplayServer : Geek::Logger
 
     bool init();
     void main();
+    void quit();
 
     void addDisplay(Display* display);
 

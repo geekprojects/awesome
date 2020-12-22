@@ -31,6 +31,7 @@ class SDLDisplayDriver : public OpenGLDisplayDriver
     ~SDLDisplayDriver() override;
 
     bool init() override;
+    void quit() override;
 
     bool poll() override;
 };

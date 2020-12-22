@@ -24,6 +24,7 @@ class DisplayDriver : public Geek::Logger
 
     virtual bool init();
     virtual bool poll();
+    virtual void quit();
 };
 
 }

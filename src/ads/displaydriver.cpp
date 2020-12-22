@@ -13,8 +13,7 @@ DisplayDriver::DisplayDriver(const std::string& name, DisplayServer* displayServ
     m_displayServer = displayServer;
 }
 
-DisplayDriver::~DisplayDriver()
-= default;
+DisplayDriver::~DisplayDriver() = default;
 
 bool DisplayDriver::init()
 {
@@ -26,4 +25,6 @@ bool DisplayDriver::poll()
     return false;
 }
 
-
+void DisplayDriver::quit()
+{
+}

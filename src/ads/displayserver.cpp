@@ -88,6 +88,9 @@ void DisplayServer::main()
             }
         }
     }
+
+    // Tell the draw thread to stop
+    m_drawSignal->signal();
 }
 
 void DisplayServer::addDisplay(Display* display)
@@ -117,6 +120,14 @@ void DisplayServer::removeClient(Client* client)
     }
 
     m_drawSignal->signal();
+}
+
+void DisplayServer::quit()
+{
+    for (DisplayDriver* driver : m_displayDrivers)
+    {
+        driver->quit();
+    }
 }
 
 DisplayServerDrawThread::DisplayServerDrawThread(DisplayServer* displayServer)

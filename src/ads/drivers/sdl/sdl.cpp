@@ -112,6 +112,15 @@ bool SDLDisplayDriver::poll()
     return true;
 }
 
+void SDLDisplayDriver::quit()
+{
+    SDL_Event event;
+    memset(&event, 0, sizeof(event));
+    event.type = SDL_QUIT;
+
+    SDL_PushEvent(&event);
+}
+
 SDLDisplay::SDLDisplay(SDLDisplayDriver* displayDriver) : OpenGLDisplay("SDLDisplay", displayDriver)
 {
 }
