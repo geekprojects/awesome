@@ -36,7 +36,7 @@ void Window::postEvent(Event* event)
         Vector2D mousePos(event->mouse.x, event->mouse.y);
         if (m_contentRect.contains(mousePos))
         {
-            log(DEBUG, "postEvent: Content event: client=%p", m_client);
+            //log(DEBUG, "postEvent: Content event: client=%p", m_client);
             if (m_client != nullptr)
             {
                 event->mouse.x -= m_contentRect.x;
@@ -45,13 +45,13 @@ void Window::postEvent(Event* event)
             }
             else
             {
-                log(DEBUG, "postEvent: Content event: No Client :-(");
+                //log(DEBUG, "postEvent: Content event: No Client :-(");
                 delete event;
             }
         }
         else
         {
-            log(DEBUG, "postEvent: Frame event");
+            //log(DEBUG, "postEvent: Frame event");
             if (event->eventType == AWESOME_EVENT_MOUSE_BUTTON && event->mouse.button.direction)
             {
                 m_displayServer->getCompositor()->startDrag(this);
