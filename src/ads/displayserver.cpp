@@ -7,6 +7,8 @@
 #endif
 #include "interfaces/awesome/awesome.h"
 
+#include <unistd.h>
+
 using namespace Awesome;
 using namespace Geek;
 using namespace std;
@@ -49,6 +51,11 @@ bool DisplayServer::init()
 #endif
 
     m_compositor = new Compositor(this);
+    res = m_compositor->init();
+    if (!res)
+    {
+        return false;
+    }
 
 #ifdef AWESOME_ENGINE_DRM
     DisplayDriver* displayDriver = new DRMDisplayDriver(this);
@@ -130,6 +137,18 @@ void DisplayServer::quit()
     }
 }
 
+Display* DisplayServer::getDisplayAt(Geek::Vector2D pos) const
+{
+    for (Display* display : m_displays)
+    {
+        if (display->getRect().contains(pos))
+        {
+            return display;
+        }
+    }
+    return nullptr;
+}
+
 DisplayServerDrawThread::DisplayServerDrawThread(DisplayServer* displayServer)
 {
     m_displayServer = displayServer;
@@ -145,6 +164,8 @@ bool DisplayServerDrawThread::main()
         {
             m_displayServer->getCompositor()->draw(display);
         }
+
+        usleep(1000000 / 100);
 
         m_displayServer->getDrawSignal()->wait();
     }

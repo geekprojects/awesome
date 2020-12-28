@@ -73,6 +73,8 @@ class DisplayServer : Geek::Logger
     {
         return m_fontManager;
     }
+
+    Display* getDisplayAt(Geek::Vector2D pos) const;
 };
 
 class DisplayServerDrawThread : public Geek::Thread

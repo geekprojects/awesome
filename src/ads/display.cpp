@@ -40,4 +40,7 @@ void Display::updateFrame(Window* window)
 {
 }
 
+void Display::drawCursor(Cursor* cursor, Geek::Vector2D pos)
+{
+}
 

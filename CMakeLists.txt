@@ -26,9 +26,11 @@ list(APPEND ads_srcs
     include/awesome/window.h
     include/awesome/compositor.h
     include/awesome/protocol.h
+    include/awesome/cursor.h
     src/ads/main.cpp
     src/ads/client.cpp
     src/ads/compositor.cpp
+    src/ads/cursor.cpp
     src/ads/displayserver.cpp
     src/ads/displaydriver.cpp
     src/ads/display.cpp

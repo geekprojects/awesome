@@ -14,6 +14,13 @@ Compositor::Compositor(DisplayServer* displayServer) : Logger("Compositor")
 
 Compositor::~Compositor() = default;
 
+bool Compositor::init()
+{
+    m_cursor = Cursor::loadCursor();
+
+    return true;
+}
+
 void Compositor::addWindow(Window* window)
 {
     Rect windowRect = window->getRect();
@@ -77,6 +84,11 @@ void Compositor::draw(Display* display)
         drawWindow(display, displayRect, *it);
     }
     m_windowMutex->unlock();
+
+    if (display->getRect().contains(m_mousePos))
+    {
+        display->drawCursor(m_cursor, m_mousePos);
+    }
 
     display->endDraw();
 }
@@ -196,6 +208,8 @@ void Compositor::postEvent(Event* event)
     {
         case AWESOME_EVENT_MOUSE:
         {
+            Vector2D oldPos = m_mousePos;
+            bool redraw = false;
             m_mousePos.set(event->mouse.x, event->mouse.y);
 
             if (m_dragging)
@@ -207,7 +221,7 @@ void Compositor::postEvent(Event* event)
                 {
                     m_dragging = false;
                 }
-                m_displayServer->getDrawSignal()->signal();
+                redraw = true;
             }
             else
             {
@@ -244,6 +258,10 @@ void Compositor::postEvent(Event* event)
                         //log(DEBUG, "postEvent: Skipped");
                     }
                 }
+            }
+            if (redraw || m_mousePos.x != oldPos.x || m_mousePos.y != oldPos.y)
+            {
+                m_displayServer->getDrawSignal()->signal();
             }
         } break;
 
@@ -314,4 +332,16 @@ void Compositor::dumpWindowOrder()
         log(DEBUG, "dumpWindowOrder: Background: %lu: %ls", window->getId(), window->getTitle().c_str());
     }
     m_windowMutex->unlock();
+}
+
+void Compositor::updateMousePos(Geek::Vector2D pos)
+{
+    /*
+    m_mousePos = pos;
+    Display* display = m_displayServer->getDisplayAt(m_mousePos);
+    if (display != nullptr)
+    {
+        display->updateCursor(m_cursor, m_mousePos);
+    }
+     */
 }

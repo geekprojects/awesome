@@ -162,6 +162,8 @@ bool SDLDisplay::init()
         return false;
     }
 
+    SDL_ShowCursor(false);
+
     int drawableWidth;
     int drawableHeight;
     SDL_GL_GetDrawableSize(m_window, &drawableWidth, &drawableHeight);
@@ -188,4 +190,3 @@ void SDLDisplay::swapBuffers()
 {
     SDL_GL_SwapWindow(m_window);
 }
-

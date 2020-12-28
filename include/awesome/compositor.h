@@ -7,6 +7,7 @@
 
 #include <awesome/window.h>
 #include <awesome/display.h>
+#include <awesome/cursor.h>
 
 #include <vector>
 #include <deque>
@@ -27,7 +28,9 @@ class Compositor : public Geek::Logger
     std::deque<Window*> m_windowOrder;
     std::deque<Window*> m_foregroundWindowOrder;
 
+    // TODO: Should these move to the DisplayServer?
     Geek::Vector2D m_mousePos;
+    Cursor* m_cursor = nullptr;
 
     bool m_dragging = false;
     Window* m_draggingWindow = nullptr;
@@ -36,15 +39,29 @@ class Compositor : public Geek::Logger
     void dumpWindowOrder();
 
  public:
-    Compositor(DisplayServer* displayServer);
+    explicit Compositor(DisplayServer* displayServer);
 
     ~Compositor();
+
+    bool init();
 
     void addWindow(Window* window);
 
     const std::vector<Window*> &getWindows() const
     {
         return m_windows;
+    }
+
+    void updateMousePos(Geek::Vector2D pos);
+
+    const Geek::Vector2D &getMousePos() const
+    {
+        return m_mousePos;
+    }
+
+    Cursor* getCursor() const
+    {
+        return m_cursor;
     }
 
 

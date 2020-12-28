@@ -35,22 +35,30 @@ class OpenGLDisplayDriver : public DisplayDriver
     ~OpenGLDisplayDriver() override;
 };
 
-struct OpenGLWindowTexture
+class OpenGLTexture
 {
+ private:
     bool valid = false;
     unsigned int texture = 0;
     // unsigned int sampler = 0;
     float coordX = 0;
     float coordY = 0;
     Geek::Gfx::Surface* surface = nullptr;
+
+ public:
+    OpenGLTexture();
+    ~OpenGLTexture();
+
+    void update(Geek::Gfx::Surface* surface);
+    void draw(Geek::Rect rect, float scale);
 };
 
 struct OpenGLWindowDisplayData : WindowDisplayData
 {
     Geek::Mutex* mutex = nullptr;
 
-    OpenGLWindowTexture frameTexture;
-    OpenGLWindowTexture contentTexture;
+    OpenGLTexture* frameTexture;
+    OpenGLTexture* contentTexture;
 
     OpenGLWindowDisplayData() = default;
     ~OpenGLWindowDisplayData() override = default;
@@ -58,9 +66,13 @@ struct OpenGLWindowDisplayData : WindowDisplayData
 
 class OpenGLDisplay : public Display
 {
+ private:
+    Cursor* m_currentCursor = nullptr;
+    OpenGLTexture* m_cursorTexture = nullptr;
+
  protected:
     OpenGLWindowDisplayData* getData(Window* window);
-    void updateTexture(OpenGLWindowDisplayData* data, OpenGLWindowTexture* texture, Geek::Gfx::Surface* surface);
+    void updateTexture(OpenGLWindowDisplayData* data, OpenGLTexture* texture, Geek::Gfx::Surface* surface);
 
     virtual void setCurrentContext() = 0;
     virtual void releaseCurrentContext() = 0;
@@ -76,10 +88,10 @@ class OpenGLDisplay : public Display
     bool draw(Window* window, Geek::Rect drawRect) override;
     void endDraw() override;
 
+    void drawCursor(Cursor* cursor, Geek::Vector2D pos) override;
+
     void update(Window* window, Geek::Gfx::Surface* surface) override;
     void updateFrame(Window* window) override;
-
-    void drawTexture(const OpenGLWindowTexture* texture, Geek::Rect rect);
 };
 
 }

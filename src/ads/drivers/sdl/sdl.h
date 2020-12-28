@@ -42,6 +42,7 @@ class SDLDisplay : public OpenGLDisplay
     SDL_Window* m_window = nullptr;
     SDL_GLContext m_glContext = nullptr;
 
+
  protected:
     void setCurrentContext() override;
     void releaseCurrentContext() override;
@@ -52,10 +53,6 @@ class SDLDisplay : public OpenGLDisplay
     ~SDLDisplay() override;
 
     bool init() override;
-
-    //bool startDraw() override;
-    //bool draw(Window* window, Geek::Rect drawRect) override;
-    //void endDraw() override;
 
     SDL_Window* getWindow() const
     {

@@ -99,9 +99,9 @@ bool OpenGLDisplay::draw(Window* window, Geek::Rect drawRect)
     OpenGLWindowDisplayData* data = getData(window);
     Rect windowRect = window->getRect();
 
-    if (!data->frameTexture.valid && window->hasFrame())
+    if (data->frameTexture != nullptr && window->hasFrame())
     {
-        updateTexture(data, &(data->frameTexture), window->getFrameSurface());
+        updateTexture(data, data->frameTexture, window->getFrameSurface());
     }
 
     Rect rect = window->getContentRect();
@@ -109,44 +109,17 @@ bool OpenGLDisplay::draw(Window* window, Geek::Rect drawRect)
     rect.y += windowRect.y;
 
     data->mutex->lock();
-    if (data->frameTexture.valid)
+    if (data->frameTexture != nullptr)
     {
-        drawTexture(&(data->frameTexture), windowRect);
+        data->frameTexture->draw(windowRect, m_scale);
     }
-    if (data->contentTexture.valid)
+    if (data->contentTexture != nullptr)
     {
-        drawTexture(&(data->contentTexture), rect);
+        data->contentTexture->draw(rect, m_scale);
     }
     data->mutex->unlock();
 
     return true;
-}
-
-void OpenGLDisplay::drawTexture(const OpenGLWindowTexture* texture, Rect rect)
-{
-    glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
-
-    glBindTexture(GL_TEXTURE_2D, texture->texture);
-    glBegin(GL_TRIANGLE_STRIP);
-
-    rect.x *= m_scale;
-    rect.y *= m_scale;
-    rect.w *= m_scale;
-    rect.h *= m_scale;
-
-    glTexCoord2f(0, 0);
-    glVertex2i(rect.x, rect.y);
-
-    glTexCoord2f(texture->coordX, 0);
-    glVertex2i(rect.x + (rect.w), rect.y);
-
-    glTexCoord2f(0, texture->coordY);
-    glVertex2i(rect.x, rect.y + (rect.h));
-
-    glTexCoord2f(texture->coordX, texture->coordY);
-    glVertex2i(rect.x + (rect.w), rect.y + (rect.h));
-
-    glEnd();
 }
 
 void OpenGLDisplay::endDraw()
@@ -170,19 +143,24 @@ void OpenGLDisplay::update(Window* window, Geek::Gfx::Surface* surface)
 {
     OpenGLWindowDisplayData* data = getData(window);
     setCurrentContext();
-    updateTexture(data, &(data->contentTexture), surface);
+    updateTexture(data, data->contentTexture, surface);
     releaseCurrentContext();
 }
 
 void OpenGLDisplay::updateFrame(Window* window)
 {
-    if (window->getFrameSurface() == nullptr)
+    Surface* frameSurface = window->getFrameSurface();
+    if (frameSurface == nullptr)
     {
         return;
     }
     setCurrentContext();
     OpenGLWindowDisplayData* data = getData(window);
-    updateTexture(data, &(data->frameTexture), window->getFrameSurface());
+    if (data->frameTexture == nullptr)
+    {
+        data->frameTexture = new OpenGLTexture();
+    }
+    updateTexture(data, data->frameTexture, window->getFrameSurface());
     releaseCurrentContext();
 }
 
@@ -193,57 +171,106 @@ OpenGLWindowDisplayData* OpenGLDisplay::getData(Window* window)
     {
         data = new OpenGLWindowDisplayData();
         data->mutex = Thread::createMutex();
+        data->contentTexture = new OpenGLTexture();
         window->setWindowDisplayData(this, data);
     }
 
     return data;
 }
 
-void OpenGLDisplay::updateTexture(OpenGLWindowDisplayData* data, OpenGLWindowTexture* texture, Geek::Gfx::Surface* surface)
+void OpenGLDisplay::updateTexture(OpenGLWindowDisplayData* data, OpenGLTexture* texture, Geek::Gfx::Surface* surface)
 {
     data->mutex->lock();
 
-    int winWidth = surface->getWidth();
-    int winHeight = surface->getHeight();
+    texture->update(surface);
 
-    unsigned int textureWidth = powerOfTwo(winWidth * 1);
-    unsigned int textureHeight = powerOfTwo(winHeight * 1);
-    texture->coordX = (float)(winWidth * 1) / (float)textureWidth;
-    texture->coordY = (float)(winHeight * 1) / (float)textureHeight;
+    data->mutex->unlock();
+}
 
-    if (texture->surface == nullptr ||
-        texture->surface->getWidth() != textureWidth ||
-        texture->surface->getHeight() != textureHeight )
+void OpenGLDisplay::drawCursor(Cursor* cursor, Geek::Vector2D pos)
+{
+    if (m_cursorTexture == nullptr)
     {
-        if (texture->surface != nullptr)
-        {
-            delete texture->surface;
-        }
-        texture->surface = new Surface(textureWidth, textureHeight, 4);
-        texture->surface->clear(0);
+        m_cursorTexture = new OpenGLTexture();
+    }
+    m_cursorTexture->update(cursor->getSurface());
+
+    Rect rect;
+    rect.x = pos.x;
+    rect.y = pos.y;
+    rect.w = cursor->getSurface()->getWidth() / m_scale;
+    rect.h = cursor->getSurface()->getHeight() / m_scale;
+    m_cursorTexture->draw(rect, m_scale);
+}
+
+OpenGLTexture::OpenGLTexture()
+{
+    glGenTextures(1, &texture);
+}
+
+OpenGLTexture::~OpenGLTexture()
+{
+    delete surface;
+}
+
+void OpenGLTexture::update(Geek::Gfx::Surface* newSurface)
+{
+    int width = newSurface->getWidth();
+    int height = newSurface->getHeight();
+
+    unsigned int textureWidth = powerOfTwo(width * 1);
+    unsigned int textureHeight = powerOfTwo(height * 1);
+
+    if (surface == nullptr || surface->getWidth() != textureWidth || surface->getHeight() != textureHeight)
+    {
+        delete surface;
+        coordX = (float) (width * 1) / (float) textureWidth;
+        coordY = (float) (height * 1) / (float) textureHeight;
+
+        surface = new Surface(textureWidth, textureHeight, 4);
+        surface->clear(0);
     }
 
-    texture->surface->blit(0, 0, surface);
+    surface->blit(0, 0, newSurface);
 
-    if (texture->texture == 0)
-    {
-        glGenTextures(1, &(texture->texture));
-    }
-
-    glBindTexture(GL_TEXTURE_2D, texture->texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(
         GL_TEXTURE_2D,
         0,
         GL_RGBA,
-        texture->surface->getWidth(), texture->surface->getHeight(),
+        textureWidth,
+        textureHeight,
         0,
         GL_BGRA,
         GL_UNSIGNED_BYTE,
-        texture->surface->getData());
-
-    texture->valid = true;
-    data->mutex->unlock();
+        surface->getData());
 }
 
+void OpenGLTexture::draw(Rect rect, float scale)
+{
+    glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
+
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glBegin(GL_TRIANGLE_STRIP);
+
+    rect.x *= scale;
+    rect.y *= scale;
+    rect.w *= scale;
+    rect.h *= scale;
+
+    glTexCoord2f(0, 0);
+    glVertex2i(rect.x, rect.y);
+
+    glTexCoord2f(coordX, 0);
+    glVertex2i(rect.x + (rect.w), rect.y);
+
+    glTexCoord2f(0, coordY);
+    glVertex2i(rect.x, rect.y + (rect.h));
+
+    glTexCoord2f(coordX, coordY);
+    glVertex2i(rect.x + (rect.w), rect.y + (rect.h));
+
+    glEnd();
+}

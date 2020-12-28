@@ -9,6 +9,8 @@
 #include <geek/core-maths.h>
 #include <geek/gfx-surface.h>
 
+#include <awesome/cursor.h>
+
 namespace Awesome
 {
 
@@ -41,6 +43,8 @@ class Display : public Geek::Logger
     virtual bool startDraw();
     virtual bool draw(Window* window, Geek::Rect drawRect);
     virtual void endDraw();
+
+    virtual void drawCursor(Cursor* cursor, Geek::Vector2D pos);
 
     const Geek::Rect &getRect() const
     {
