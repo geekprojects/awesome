@@ -1,14 +1,14 @@
 #ifndef AWESOME_PROTOCOL_H
 #define AWESOME_PROTOCOL_H
 
-#include <stdint.h>
-#include <limits.h>
 #include "event.h"
 
 #define PACKED __attribute__((packed))
 
 namespace Awesome
 {
+
+#define AWESOME_PROTOCOL_VERSION 1
 
 enum MessageFlags
 {
@@ -37,10 +37,12 @@ enum RequestType
 
 struct Message
 {
-    uint16_t messageFlags;
-    uint16_t request;
-    uint32_t size;
-    uint64_t id;
+    uint16_t messageFlags = 0;
+    uint16_t request = 0;
+    uint32_t size = 0;
+    uint64_t id = 0;
+
+    Message() = default;
 } PACKED;
 
 struct Request : Message
@@ -53,8 +55,8 @@ struct Request : Message
 
 struct Response : Message
 {
-    bool success;
-    uint32_t error;
+    bool success = true;
+    uint32_t error = 0;
 
     Response()
     {
@@ -71,70 +73,58 @@ struct Response : Message
     }
 } PACKED;
 
-struct InfoRequest : Request
-{
-    InfoRequest()
-    {
-        request = REQUEST_INFO;
+#define MESSAGE_START(_type, _name, _requestType) \
+struct _name##_type : _type \
+{ \
+    _name##_type() \
+    { \
+        request = _requestType; \
     }
-} PACKED;
 
-struct InfoResponse : Response
-{
-    uint32_t protocolVersion;
-    uint32_t numInterfaces;
-    uint32_t numDrivers;
-    uint32_t numDisplays;
+#define MESSAGE_END } PACKED;
 
-    char name[32];
-    char vendor[32];
-    char version[32];
+#define REQUEST_START(_name, _type) MESSAGE_START(Request, _name, _type)
+#define REQUEST_END MESSAGE_END
+#define REQUEST(_name, _type) REQUEST_START(_name, _type) REQUEST_END
 
-    InfoResponse()
-    {
-        request = REQUEST_INFO;
-    }
-} PACKED;
+#define RESPONSE_START(_name, _type) MESSAGE_START(Response, _name, _type)
+#define RESPONSE_END MESSAGE_END
+#define RESPONSE(_name, _type) RESPONSE_START(_name, _type) RESPONSE_END
 
-struct InfoDisplayRequest : Request
-{
-    uint32_t display;
+REQUEST(Info, REQUEST_INFO)
 
-    InfoDisplayRequest()
-    {
-        request = REQUEST_INFO_DISPLAY;
-    }
-} PACKED;
+RESPONSE_START(Info, REQUEST_INFO)
+    uint32_t protocolVersion = AWESOME_PROTOCOL_VERSION;
+    uint32_t numInterfaces = 0;
+    uint32_t numDrivers = 0;
+    uint32_t numDisplays = 0;
 
-struct InfoDisplayResponse : Response
-{
-    uint32_t display;
-    uint32_t x;
-    uint32_t y;
-    uint32_t width;
-    uint32_t height;
-    float scale;
+    char name[32] = {0};
+    char vendor[32] = {0};
+    char version[32] = {0};
+RESPONSE_END
 
-    InfoDisplayResponse()
-    {
-        request = REQUEST_INFO_DISPLAY;
-    }
-} PACKED;
+REQUEST_START(InfoDisplay, REQUEST_INFO_DISPLAY)
+    uint32_t display = 0;
+RESPONSE_END
 
-struct ShmAttachRequest : Request
-{
-    char path[256];
-    int size;
+RESPONSE_START(InfoDisplay, REQUEST_INFO_DISPLAY)
+    uint32_t display = 0;
+    uint32_t x = 0;
+    uint32_t y = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    float scale = 0;
+RESPONSE_END
 
-    ShmAttachRequest()
-    {
-        request = REQUEST_SHM_ATTACH;
-    }
-} PACKED;
+REQUEST_START(ShmAttach, REQUEST_SHM_ATTACH)
+    char path[256] = {0};
+    int size = 0;
+REQUEST_END
 
 struct ShmDetachRequest : Request
 {
-    char path[256];
+    char path[256] = {0};
 
     ShmDetachRequest()
     {
@@ -159,22 +149,21 @@ enum WindowFlags
     WINDOW_NORMAL     = WINDOW_BORDER | WINDOW_TITLE | WINDOW_RESIZEABLE
 } PACKED;
 
-#define WINDOW_POSITION_ANY -INT_MAX
+#define WINDOW_POSITION_ANY -INT32_MIN
 
 struct WindowCreateRequest : Request
 {
     int32_t x = WINDOW_POSITION_ANY;
     int32_t y = WINDOW_POSITION_ANY;
-    int32_t width;
-    int32_t height;
+    int32_t width = 0;
+    int32_t height = 0;
     uint64_t flags = WINDOW_NORMAL;
     uint8_t visible = true;
-    wchar_t title[100];
+    wchar_t title[100] = {0};
 
     WindowCreateRequest()
     {
         request = REQUEST_WINDOW_CREATE;
-        title[0] = 0;
     }
 } PACKED;
 
