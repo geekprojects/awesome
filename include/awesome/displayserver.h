@@ -14,6 +14,8 @@
 #include <geek/core-thread.h>
 #include <geek/fonts.h>
 
+#include <yaml-cpp/yaml.h>
+
 #include <vector>
 
 namespace Awesome
@@ -23,10 +25,15 @@ class DisplayServerDrawThread;
 class DisplayServer : Geek::Logger
 {
  private:
+    YAML::Node m_config;
+
     std::vector<Interface*> m_interfaces;
     std::vector<DisplayDriver*> m_displayDrivers;
     std::vector<Display*> m_displays;
     std::vector<Client*> m_clients;
+
+    int m_totalWidth = 0;
+    int m_totalHeight = 0;
 
     Compositor* m_compositor = nullptr;
 
@@ -35,6 +42,8 @@ class DisplayServer : Geek::Logger
 
     Geek::CondVar* m_drawSignal;
     bool m_running = true;
+
+    DisplayDriver* createDisplayDriver();
 
  public:
     DisplayServer();
@@ -46,7 +55,14 @@ class DisplayServer : Geek::Logger
 
     void addDisplay(Display* display);
 
-    const std::vector<Display*> &getDisplays() const
+    bool loadConfig(std::string configFile);
+
+    const YAML::Node& getConfig() const
+    {
+        return m_config;
+    }
+
+    [[nodiscard]] const std::vector<Display*> &getDisplays() const
     {
         return m_displays;
     }
@@ -59,12 +75,12 @@ class DisplayServer : Geek::Logger
         return m_running;
     }
 
-    Compositor* getCompositor() const
+    [[nodiscard]] Compositor* getCompositor() const
     {
         return m_compositor;
     }
 
-    Geek::CondVar* getDrawSignal() const
+    [[nodiscard]] Geek::CondVar* getDrawSignal() const
     {
         return m_drawSignal;
     }
@@ -75,6 +91,16 @@ class DisplayServer : Geek::Logger
     }
 
     Display* getDisplayAt(Geek::Vector2D pos) const;
+
+    int getTotalWidth() const
+    {
+        return m_totalWidth;
+    }
+
+    int getTotalHeight() const
+    {
+        return m_totalHeight;
+    }
 };
 
 class DisplayServerDrawThread : public Geek::Thread

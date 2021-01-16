@@ -234,6 +234,15 @@ void Compositor::postEvent(Event* event)
                         m_displayServer->getDrawSignal()->signal();
                     }
 
+                    if (m_activeWindow != targetWindow)
+                    {
+                        if (m_activeWindow != nullptr)
+                        {
+                            // Lose focus
+                        }
+                        m_activeWindow = targetWindow;
+                    }
+
                     bool skip = false;
                     if (event->eventType == AWESOME_EVENT_MOUSE_MOTION)
                     {
@@ -266,6 +275,18 @@ void Compositor::postEvent(Event* event)
         } break;
 
         case AWESOME_EVENT_KEYBOARD:
+            log(DEBUG, "postEvent: Keyboard: key=%d, modifier=0x%x, activeWindow=%p", event->key.key, event->key.modifiers, m_activeWindow);
+
+            // TODO: Handle global key sequences
+
+            if (m_activeWindow != nullptr)
+            {
+                event->windowId = m_activeWindow->getId();
+                m_activeWindow->postEvent(event);
+                posted = true;
+            }
+            break;
+
         case AWESOME_EVENT_WINDOW:
         case AWESOME_EVENT_MASK:
             break;

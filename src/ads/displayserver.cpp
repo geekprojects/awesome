@@ -1,10 +1,4 @@
 #include <awesome/displayserver.h>
-#ifdef AWESOME_ENGINE_DRM
-#include "drivers/linuxdrm/linuxdrm.h"
-#endif
-#ifdef AWESOME_ENGINE_SDL
-#include "drivers/sdl/sdl.h"
-#endif
 #include "interfaces/awesome/awesome.h"
 
 #include <unistd.h>
@@ -12,6 +6,9 @@
 using namespace Awesome;
 using namespace Geek;
 using namespace std;
+
+#define STRINGIFY(x) XSTRINGIFY(x)
+#define XSTRINGIFY(x) #x
 
 DisplayServer::DisplayServer() : Logger("DisplayServer")
 {
@@ -57,11 +54,7 @@ bool DisplayServer::init()
         return false;
     }
 
-#ifdef AWESOME_ENGINE_DRM
-    DisplayDriver* displayDriver = new DRMDisplayDriver(this);
-#elif defined(AWESOME_ENGINE_SDL)
-    DisplayDriver* displayDriver = new SDLDisplayDriver(this);
-#endif
+    DisplayDriver* displayDriver = createDisplayDriver();
     res = displayDriver->init();
     if (res)
     {
@@ -76,15 +69,29 @@ bool DisplayServer::init()
     return true;
 }
 
+DisplayDriver* DisplayServer::createDisplayDriver()
+{
+    string displayDriverName = STRINGIFY(DRIVER);
+
+    const char* envDriver = getenv("AWESOME_DRIVER");
+    if (envDriver != nullptr)
+    {
+        displayDriverName = string(envDriver);
+    }
+    log(DEBUG, "createNativeEngine: Creating engine: %s", displayDriverName.c_str());
+
+    return DisplayDriverRegistry::createDisplayDriver(this, displayDriverName);
+}
+
 void DisplayServer::main()
 {
     m_running = true;
 
     m_drawThread->start();
 
+
     while (m_running)
     {
-        log(DEBUG, "main: Polling...");
         for (DisplayDriver* driver : m_displayDrivers)
         {
             bool res;
@@ -103,6 +110,19 @@ void DisplayServer::main()
 void DisplayServer::addDisplay(Display* display)
 {
     m_displays.push_back(display);
+
+    Rect r = display->getRect();
+    int maxWidth = r.x + r.w;
+    int maxHeight = r.y + r.h;
+
+    if (m_totalWidth < maxWidth)
+    {
+        m_totalWidth = maxWidth;
+    }
+    if (m_totalHeight < maxHeight)
+    {
+        m_totalHeight = maxHeight;
+    }
 }
 
 void DisplayServer::addClient(Client* client)
@@ -149,6 +169,21 @@ Display* DisplayServer::getDisplayAt(Geek::Vector2D pos) const
     return nullptr;
 }
 
+bool DisplayServer::loadConfig(std::string configFile)
+{
+    try
+    {
+        m_config = YAML::LoadFile("/usr/local/etc/awesome/awesome.yaml");
+    }
+    catch (...)
+    {
+        log(ERROR, "loadConfig: Failed to load configuration: %s", configFile.c_str());
+        return false;
+    }
+
+    return true;
+}
+
 DisplayServerDrawThread::DisplayServerDrawThread(DisplayServer* displayServer)
 {
     m_displayServer = displayServer;
@@ -172,4 +207,3 @@ bool DisplayServerDrawThread::main()
 
     return true;
 }
-
