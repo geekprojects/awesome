@@ -81,8 +81,29 @@ Cursor* Cursor::loadCursor()
         printf("loadCursor: image %d: type=0x%x, subtype=%d, version=%d, width=%d, height=%d, xpos=%d, ypos=%d, delay=%d\n", i, type, subtype, version, width, height, xpos, ypos, delay);
 
         cursor = new Cursor();
-        cursor->m_surface = new Surface(width, height, 4);
-        memcpy(cursor->m_surface->getData(), cursorData->posPointer(), width * height * 4);
+        Surface* surface = new Surface(width, height, 4);
+        cursor->m_surface = surface;
+        memcpy(surface->getData(), cursorData->posPointer(), surface->getDataLength());
+
+        uint8_t* pos = surface->getData();
+        for (; pos < surface->getData() + surface->getDataLength(); pos += 4)
+        {
+            uint8_t a = pos[3];
+            /* if (a == 0)
+            {
+                pos[0] = 255;
+                pos[1] = 0;
+            } */
+            //pos[3] = 255 - pos[3];
+            //pos[0] = a;
+            //pos[1] = a;
+            //pos[2] = a;
+            if (a == 0)
+            {
+                pos[3] = 1;
+            }
+            //pos[3] = 255;
+        }
 
         cursor->m_surface->saveJPEG("cursor.jpg");
         cursor->m_hotSpot.x = xpos;
