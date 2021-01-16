@@ -14,6 +14,8 @@
 
 #include <SDL.h>
 #include <SDL_video.h>
+#include <awesome/event.h>
+#include <yaml-cpp/yaml.h>
 
 #include "drivers/opengl.h"
 
@@ -25,6 +27,10 @@ class SDLDisplayDriver : public OpenGLDisplayDriver
 {
  private:
     std::map<SDL_Window*, SDLDisplay*> m_displays;
+    std::map<uint32_t, uint32_t> m_keycodeTable;
+
+    Event* m_keyDownEvent = nullptr;
+    std::string m_lastText;
 
  public:
     explicit SDLDisplayDriver(DisplayServer* displayServer);
@@ -39,9 +45,9 @@ class SDLDisplayDriver : public OpenGLDisplayDriver
 class SDLDisplay : public OpenGLDisplay
 {
  private:
+    YAML::Node m_config;
     SDL_Window* m_window = nullptr;
     SDL_GLContext m_glContext = nullptr;
-
 
  protected:
     void setCurrentContext() override;
@@ -49,7 +55,7 @@ class SDLDisplay : public OpenGLDisplay
     void swapBuffers() override;
 
  public:
-    explicit SDLDisplay(SDLDisplayDriver* driver);
+    SDLDisplay(SDLDisplayDriver* driver, YAML::Node& config);
     ~SDLDisplay() override;
 
     bool init() override;

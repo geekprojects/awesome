@@ -12,11 +12,19 @@ using namespace Awesome;
 using namespace Geek;
 using namespace Geek::Gfx;
 
+REGISTER_DISPLAY_DRIVER(DRM)
+
 DRMDisplayDriver::DRMDisplayDriver(DisplayServer* displayServer) : OpenGLDisplayDriver("DRM", displayServer)
 {
 }
 
-DRMDisplayDriver::~DRMDisplayDriver() = default;
+DRMDisplayDriver::~DRMDisplayDriver()
+{
+    if (m_libInput != nullptr)
+    {
+        libinput_unref(m_libInput);
+    }
+}
 
 bool DRMDisplayDriver::init()
 {
@@ -66,12 +74,89 @@ bool DRMDisplayDriver::init()
         m_displayServer->addDisplay(display);
     }
 
+    return initInput();
+}
+
+static int open_restricted(const char *path, int flags, void *user_data)
+{
+    int fd = open(path, flags);
+    return fd < 0 ? -errno : fd;
+}
+
+static void close_restricted(int fd, void *user_data)
+{
+    close(fd);
+}
+
+const static struct libinput_interface interface = {
+    .open_restricted = open_restricted,
+    .close_restricted = close_restricted,
+};
+
+bool DRMDisplayDriver::initInput()
+{
+    struct udev *udev = udev_new();
+    m_libInput = libinput_udev_create_context(&interface, NULL, udev);
+    log(DEBUG, "initInput: m_libInput=%p", m_libInput);
+
+    int res;
+    res = libinput_udev_assign_seat(m_libInput, "seat0");
+    log(DEBUG, "initInput: assign_seat res=%d", res);
+
     return true;
 }
 
 bool DRMDisplayDriver::poll()
 {
-    sleep(1);
+    int fd = libinput_get_fd(m_libInput);
+
+    fd_set fdSet;
+    FD_ZERO (&fdSet);
+    FD_SET (fd, &fdSet);
+
+    int res;
+    res = select(FD_SETSIZE, &fdSet, nullptr, nullptr, nullptr);
+    if (res <= 0)
+    {
+        return false;
+    }
+
+    while (true)
+    {
+        libinput_dispatch(m_libInput);
+        libinput_event* event;
+        event = libinput_get_event(m_libInput);
+        if (event == nullptr)
+        {
+            break;
+        }
+
+        libinput_event_type type = libinput_event_get_type(event);
+
+        switch (type)
+        {
+            case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+            {
+                libinput_event_pointer* p = libinput_event_get_pointer_event(event);
+                double x = libinput_event_pointer_get_absolute_x_transformed(p, m_displayServer->getTotalWidth());
+                double y = libinput_event_pointer_get_absolute_y_transformed(p, m_displayServer->getTotalHeight());
+
+                Event* mouseEvent = new Event();
+                mouseEvent->eventType = AWESOME_EVENT_MOUSE_MOTION;
+                mouseEvent->mouse.x = (int)x;
+                mouseEvent->mouse.y = (int)y;
+
+                m_displayServer->getCompositor()->postEvent(mouseEvent);
+            } break;
+
+            default:
+                log(DEBUG, "poll: Unhandled type=%d", type);
+                break;
+        }
+
+        libinput_event_destroy(event);
+    }
+
     return true;
 }
 

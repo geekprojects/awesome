@@ -19,9 +19,10 @@ class DisplayServer;
 class Compositor : public Geek::Logger
 {
  private:
-    DisplayServer* m_displayServer;
+    DisplayServer* m_displayServer = nullptr;
     std::vector<Window*> m_windows;
-    Geek::Mutex* m_windowMutex;
+    Window* m_activeWindow = nullptr;
+    Geek::Mutex* m_windowMutex = nullptr;
     int m_windowIdx = 1;
 
     std::deque<Window*> m_backgroundWindowOrder;

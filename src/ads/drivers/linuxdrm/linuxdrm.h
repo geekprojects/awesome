@@ -12,6 +12,8 @@
 #include <xf86drmMode.h>
 #include <gbm.h>
 
+#include <libinput.h>
+
 #define GL_GLEXT_PROTOTYPES 1
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
@@ -67,7 +69,11 @@ class DRMDisplayDriver : public OpenGLDisplayDriver
     std::set<int> m_availableCrtcs;
     gbm_device* m_gbmDev{};
 
+    libinput* m_libInput;
+
     void initDisplay(drmModeConnector* conn);
+
+    bool initInput();
 
  public:
     explicit DRMDisplayDriver(DisplayServer* displayServer);

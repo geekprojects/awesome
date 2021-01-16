@@ -1,0 +1,19 @@
+---
+
+drivers:
+  display:
+    - SDL:
+        enabled: true
+        displays:
+          - display0:
+              x: 0
+              y: 0
+              width: 1024
+              height: 768
+  input:
+    - SDL:
+        enabled: true
+
+startup:
+  commands:
+    - /usr/local/bin/awesome-login
