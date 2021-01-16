@@ -11,6 +11,7 @@ pkg_check_modules(sdl2 sdl2)
 pkg_check_modules(libevent REQUIRED libevent)
 pkg_check_modules(libevent_pthreads REQUIRED libevent_pthreads)
 pkg_check_modules(libgeek REQUIRED libgeek)
+pkg_check_modules(yamlcpp REQUIRED yaml-cpp)
 find_path(XF86_INCLUDE_PATH xf86drm.h)
 find_library(LIBRT rt)
 
@@ -43,7 +44,7 @@ list(APPEND ads_srcs
     src/ads/interfaces/awesome/awesome.h
 )
 
-set(DRIVER_LIBRARIES "")
+set(DRIVERS "")
 
 if (sdl2_FOUND)
     list(APPEND ads_srcs
@@ -52,21 +53,37 @@ if (sdl2_FOUND)
     )
     list(APPEND DRIVER_LIBRARIES ${sdl2_LDFLAGS})
     add_definitions(-DAWESOME_ENGINE_SDL=1)
+    list(APPEND DRIVERS "SDL")
 endif()
 if (XF86_INCLUDE_PATH)
     pkg_check_modules(gbm REQUIRED gbm)
     pkg_check_modules(egl REQUIRED egl)
+    pkg_check_modules(libinput REQUIRED libinput)
     list(APPEND ads_srcs
             src/ads/drivers/linuxdrm/linuxdrm.cpp
             src/ads/drivers/linuxdrm/linuxdrm.h
     )
     add_definitions(-I${XF86_INCLUDE_PATH}/drm -DAWESOME_ENGINE_DRM=1)
-    list(APPEND DRIVER_LIBRARIES -ldrm ${gbm_LDFLAGS} ${egl_LDFLAGS} -lrt)
+    list(APPEND DRIVER_LIBRARIES -ldrm ${gbm_LDFLAGS} ${egl_LDFLAGS} ${libinput_LDFLAGS} -ludev -lrt)
+
+    list(APPEND DRIVERS "DRM")
 endif()
+
+if (NOT DRIVER)
+    list(GET DRIVERS 0 DRIVER)
+else()
+    message(STATUS "User selected driver: ${DRIVER}")
+    list(FIND DRIVERS ${DRIVER} IDX)
+    if (IDX EQUAL -1)
+        message(FATAL_ERROR "Unable to select driver '${DRIVER}' as default")
+    endif()
+endif()
+
+add_definitions(-DDRIVER=${DRIVER})
 
 add_executable(awesome-display-server ${ads_srcs})
 target_include_directories(awesome-display-server PRIVATE ${PROJECT_SOURCE_DIR}/src/ads)
-target_link_libraries(awesome-display-server ${libgeek_LDFLAGS} ${DRIVER_LIBRARIES} ${OPENGL_LIBRARIES} ${libevent_LDFLAGS} ${libevent_pthreads_LDFLAGS})
+target_link_libraries(awesome-display-server ${libgeek_LDFLAGS} ${DRIVER_LIBRARIES} ${OPENGL_LIBRARIES} ${libevent_LDFLAGS} ${libevent_pthreads_LDFLAGS} ${yamlcpp_LDFLAGS})
 
 install(TARGETS awesome-display-server DESTINATION bin)
 
