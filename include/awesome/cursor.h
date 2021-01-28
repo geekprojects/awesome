@@ -17,6 +17,8 @@ class Cursor
 
     static Cursor* loadCursor();
 
+    const Geek::Vector2D& getHotSpot() const { return m_hotSpot; }
+
     Geek::Gfx::Surface* getSurface() { return m_surface; }
 };
 }
