@@ -217,7 +217,7 @@ bool SDLDisplayDriver::poll()
             } break;
             case SDL_TEXTINPUT:
             {
-                if (m_keyDownEvent != NULL)
+                if (m_keyDownEvent != nullptr)
                 {
                     log(DEBUG,
                         "poll: SDL_TEXTINPUT: Sending DOWN: chr=%s, key=0x%x, mod=0x%x",
@@ -234,7 +234,7 @@ bool SDLDisplayDriver::poll()
                     }
 
                     m_displayServer->getCompositor()->postEvent(eventCopy);
-                    m_keyDownEvent = NULL;
+                    m_keyDownEvent = nullptr;
                 }
                 else
                 {

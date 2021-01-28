@@ -243,29 +243,17 @@ void Compositor::postEvent(Event* event)
                         m_activeWindow = targetWindow;
                     }
 
-                    bool skip = false;
-                    if (event->eventType == AWESOME_EVENT_MOUSE_MOTION)
-                    {
-                        skip = !targetWindow->wantsMotionEvents();
-                    }
 
                     if (event->eventType == AWESOME_EVENT_MOUSE_BUTTON)
                     {
                         log(DEBUG, "postEvent: Button: window=%d: %ls", targetWindow->getId(), targetWindow->getTitle().c_str());
                     }
 
-                    if (!skip)
-                    {
-                        event->windowId = targetWindow->getId();
-                        event->mouse.x -= targetWindow->getRect().x;
-                        event->mouse.y -= targetWindow->getRect().y;
-                        targetWindow->postEvent(event);
-                        posted = true;
-                    }
-                    else
-                    {
-                        //log(DEBUG, "postEvent: Skipped");
-                    }
+                    event->windowId = targetWindow->getId();
+                    event->mouse.x -= targetWindow->getRect().x;
+                    event->mouse.y -= targetWindow->getRect().y;
+                    targetWindow->postEvent(event);
+                    posted = true;
                 }
             }
             if (redraw || m_mousePos.x != oldPos.x || m_mousePos.y != oldPos.y)

@@ -15,8 +15,8 @@
 #include <libinput.h>
 
 #define GL_GLEXT_PROTOTYPES 1
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
+//#include <GLES2/gl2.h>
+//#include <GLES2/gl2ext.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
@@ -69,7 +69,7 @@ class DRMDisplayDriver : public OpenGLDisplayDriver
     std::set<int> m_availableCrtcs;
     gbm_device* m_gbmDev{};
 
-    libinput* m_libInput;
+    libinput* m_libInput = nullptr;
 
     void initDisplay(drmModeConnector* conn);
 

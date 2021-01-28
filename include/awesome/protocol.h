@@ -149,7 +149,7 @@ enum WindowFlags
     WINDOW_NORMAL     = WINDOW_BORDER | WINDOW_TITLE | WINDOW_RESIZEABLE
 } PACKED;
 
-#define WINDOW_POSITION_ANY -INT32_MIN
+#define WINDOW_POSITION_ANY INT32_MIN
 
 struct WindowCreateRequest : Request
 {

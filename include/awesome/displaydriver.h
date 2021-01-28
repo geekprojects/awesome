@@ -36,9 +36,9 @@ class DisplayDriverInit
     DisplayDriverInit() = default;
     virtual ~DisplayDriverInit() = default;
 
-    virtual DisplayDriver* create(DisplayServer* displayServer) { return NULL; }
+    virtual DisplayDriver* create(DisplayServer* displayServer) { return nullptr; }
 
-    virtual const std::string getName() { return ""; }
+    virtual std::string getName() { return ""; }
 };
 
 class DisplayDriverRegistry
@@ -64,11 +64,12 @@ class DisplayDriverRegistry
         { \
             DisplayDriverRegistry::registerDisplayDriver(this); \
         } \
-        const std::string getName() \
+        ~_name##DisplayDriverInit() = default; \
+        std::string getName() override \
         { \
             return #_name; \
         } \
-        _name##DisplayDriver* create(DisplayServer* ds) \
+        _name##DisplayDriver* create(DisplayServer* ds) override \
         { \
             return new _name##DisplayDriver(ds); \
         } \
