@@ -3,6 +3,7 @@
 
 #include <awesome/client.h>
 #include <awesome/protocol.h>
+#include <awesome/button.h>
 
 #include <geek/core-logger.h>
 #include <geek/core-maths.h>
@@ -24,6 +25,8 @@ class Window : public Geek::Logger
     unsigned int m_flags = 0;
     bool m_visible = false;
     std::wstring m_title;
+
+    Button* m_closeButton;
 
     DisplayServer* m_displayServer = nullptr;
     Client* m_client = nullptr;

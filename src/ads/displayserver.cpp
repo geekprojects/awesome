@@ -5,6 +5,7 @@
 
 using namespace Awesome;
 using namespace Geek;
+using namespace Geek::Gfx;
 using namespace std;
 
 #define STRINGIFY(x) XSTRINGIFY(x)
@@ -65,6 +66,10 @@ bool DisplayServer::init()
     awesomeInterface->init();
 
     m_drawThread = new DisplayServerDrawThread(this);
+
+    m_closeButtonActive = Surface::loadPNG("/Users/ian/projects/awesome/data/icons/close-active.png");
+    m_closeButtonHover = Surface::loadPNG("/Users/ian/projects/awesome/data/icons/close-active.png");
+    m_closeButtonInactive = Surface::loadPNG("/Users/ian/projects/awesome/data/icons/close-inactive.png");
 
     return true;
 }

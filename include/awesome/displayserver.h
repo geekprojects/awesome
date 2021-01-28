@@ -40,6 +40,12 @@ class DisplayServer : Geek::Logger
     DisplayServerDrawThread* m_drawThread = nullptr;
     Geek::FontManager* m_fontManager = nullptr;
 
+    Geek::Gfx::Surface* m_closeButtonActive = nullptr;
+    Geek::Gfx::Surface* m_closeButtonInactive = nullptr;
+    Geek::Gfx::Surface* m_closeButtonHover = nullptr;
+
+ private:
+
     Geek::CondVar* m_drawSignal;
     bool m_running = true;
 
@@ -100,6 +106,19 @@ class DisplayServer : Geek::Logger
     int getTotalHeight() const
     {
         return m_totalHeight;
+    }
+
+    Geek::Gfx::Surface* getCloseButtonInactive() const
+    {
+        return m_closeButtonInactive;
+    }
+    Geek::Gfx::Surface* getCloseButtonHover() const
+    {
+        return m_closeButtonHover;
+    }
+    Geek::Gfx::Surface* getCloseButtonActive() const
+    {
+        return m_closeButtonActive;
     }
 };
 

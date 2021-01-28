@@ -13,6 +13,13 @@ Window::Window(DisplayServer* displayServer, Client* client) : Logger("Window")
     m_client = client;
 
     setContentSize(0, 0);
+
+    m_closeButton = new Button(
+        5,
+        10,
+        m_displayServer->getCloseButtonInactive(),
+        m_displayServer->getCloseButtonHover(),
+        m_displayServer->getCloseButtonActive());
 }
 
 Window::~Window() = default;
@@ -36,8 +43,14 @@ void Window::postEvent(Event* event)
         Vector2D mousePos(event->mouse.x, event->mouse.y);
         if (m_contentRect.contains(mousePos))
         {
+            bool skip = false;
+            if (event->eventType == AWESOME_EVENT_MOUSE_MOTION)
+            {
+                skip = !wantsMotionEvents();
+            }
+
             //log(DEBUG, "postEvent: Content event: client=%p", m_client);
-            if (m_client != nullptr)
+            if (!skip && m_client != nullptr)
             {
                 event->mouse.x -= m_contentRect.x;
                 event->mouse.y -= m_contentRect.y;
@@ -45,16 +58,27 @@ void Window::postEvent(Event* event)
             }
             else
             {
-                //log(DEBUG, "postEvent: Content event: No Client :-(");
                 delete event;
             }
         }
         else
         {
-            //log(DEBUG, "postEvent: Frame event");
-            if (event->eventType == AWESOME_EVENT_MOUSE_BUTTON && event->mouse.button.direction)
+            bool handled = false;
+            handled |= m_closeButton->handleEvent(event);
+
+            if (m_closeButton->isDirty())
             {
-                m_displayServer->getCompositor()->startDrag(this);
+                updateFrame();
+                m_displayServer->getDrawSignal()->signal();
+            }
+
+            //log(DEBUG, "postEvent: Frame event");
+            if (event->eventType == AWESOME_EVENT_MOUSE_BUTTON)
+            {
+                if (!handled && event->mouse.button.direction)
+                {
+                    m_displayServer->getCompositor()->startDrag(this);
+                }
             }
         }
     }
@@ -100,20 +124,23 @@ void Window::setContentSize(int width, int height)
     if (hasFrame)
     {
         m_frameSurface = new Surface(m_rect.w * 2, m_rect.h * 2, 4);
-        m_frameSurface->clear(0xff0000);
-
         updateFrame();
     }
 }
 
 void Window::updateFrame()
 {
-    m_frameSurface->clear(0xff221e21);
+    m_frameSurface->clear(0x0);
+    int w = m_frameSurface->getWidth();
+    int h = m_frameSurface->getHeight();
+    m_frameSurface->drawGradRounded(0, 0, w, h, 10, 0xffc3c6ce, 0xffa6a9b2);
 
     FontHandle* handle = m_displayServer->getFontManager()->openFont("System Font", "Regular", 24);
 
-    m_displayServer->getFontManager()->write(handle, m_frameSurface, 2, 2, L"X", 0xffffffff, true, nullptr);
-    m_displayServer->getFontManager()->write(handle, m_frameSurface, 22, 2, m_title,  0xffffffff, true, nullptr);
+    m_displayServer->getFontManager()->write(handle, m_frameSurface, 31, 7, m_title,  0xffbdc0c7, true, nullptr);
+    m_displayServer->getFontManager()->write(handle, m_frameSurface, 30, 6, m_title,  0xff303030, true, nullptr);
+
+    m_closeButton->draw(m_frameSurface);
 
     for (auto it : m_windowDisplayData)
     {

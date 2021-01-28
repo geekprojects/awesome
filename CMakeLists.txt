@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.13)
 project(awesome)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -29,6 +29,7 @@ list(APPEND ads_srcs
     include/awesome/protocol.h
     include/awesome/cursor.h
     src/ads/main.cpp
+    src/ads/button.cpp
     src/ads/client.cpp
     src/ads/compositor.cpp
     src/ads/cursor.cpp
@@ -63,8 +64,8 @@ if (XF86_INCLUDE_PATH)
             src/ads/drivers/linuxdrm/linuxdrm.cpp
             src/ads/drivers/linuxdrm/linuxdrm.h
     )
-    add_definitions(-I${XF86_INCLUDE_PATH}/drm -DAWESOME_ENGINE_DRM=1)
-    list(APPEND DRIVER_LIBRARIES -ldrm ${gbm_LDFLAGS} ${egl_LDFLAGS} ${libinput_LDFLAGS} -ludev -lrt)
+    add_definitions(-I${XF86_INCLUDE_PATH}/drm -I/usr/include/libdrm -DAWESOME_ENGINE_DRM=1)
+    list(APPEND DRIVER_LIBRARIES  -L/opt/vc/lib -ldrm ${gbm_LDFLAGS} ${egl_LDFLAGS} ${libinput_LDFLAGS} -lGLESv2 -ludev -lrt)
 
     list(APPEND DRIVERS "DRM")
 endif()
