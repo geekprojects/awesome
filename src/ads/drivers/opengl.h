@@ -19,7 +19,9 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/gl3.h>
 #else
+#define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
+#include <GL/glext.h>
 //#include <GL/gl3.h>
 #endif
 
@@ -69,6 +71,7 @@ class OpenGLDisplay : public Display
  private:
     Cursor* m_currentCursor = nullptr;
     OpenGLTexture* m_cursorTexture = nullptr;
+    Geek::Mutex* m_contextMutex = nullptr;
 
  protected:
     OpenGLWindowDisplayData* getData(Window* window);

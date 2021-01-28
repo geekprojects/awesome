@@ -29,12 +29,15 @@ OpenGLDisplayDriver::~OpenGLDisplayDriver() = default;
 
 OpenGLDisplay::OpenGLDisplay(const std::string& name, OpenGLDisplayDriver* displayDriver) : Display(name, displayDriver)
 {
+    m_contextMutex = Thread::createMutex();
 }
 
 OpenGLDisplay::~OpenGLDisplay() = default;
 
 bool OpenGLDisplay::init()
 {
+    m_contextMutex->lock();
+
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glMatrixMode(GL_MODELVIEW);
     // clear the drawing buffer.
@@ -50,11 +53,15 @@ bool OpenGLDisplay::init()
     glDisable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
 
+    m_contextMutex->unlock();
+
     return true;
 }
 
 bool OpenGLDisplay::startDraw()
 {
+    m_contextMutex->lock();
+
     setCurrentContext();
 
     glMatrixMode(GL_MODELVIEW);
@@ -73,7 +80,7 @@ bool OpenGLDisplay::startDraw()
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-   glViewport(0, 0, m_rect.w * m_scale, m_rect.h * m_scale);
+    glViewport(0, 0, m_rect.w * m_scale, m_rect.h * m_scale);
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -91,10 +98,11 @@ bool OpenGLDisplay::startDraw()
 
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
+    //glBlendFuncSeparate(GL_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE, GL_ONE);
 
     //glEnable(GL_ALPHA_TEST);
     //glAlphaFunc(GL_GREATER, 0);
-    //glEnable(GL_BLEND);
+    glEnable(GL_BLEND);
     //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glMatrixMode(GL_MODELVIEW);
@@ -109,10 +117,13 @@ bool OpenGLDisplay::draw(Window* window, Geek::Rect drawRect)
     OpenGLWindowDisplayData* data = getData(window);
     Rect windowRect = window->getRect();
 
+    /*
     if (data->frameTexture != nullptr && window->hasFrame())
     {
         updateTexture(data, data->frameTexture, window->getFrameSurface());
+        setCurrentContext();
     }
+     */
 
     Rect rect = window->getContentRect();
     rect.x += windowRect.x;
@@ -147,14 +158,18 @@ void OpenGLDisplay::endDraw()
     swapBuffers();
 
     releaseCurrentContext();
+
+    m_contextMutex->unlock();
 }
 
 void OpenGLDisplay::update(Window* window, Geek::Gfx::Surface* surface)
 {
+    m_contextMutex->lock();
     OpenGLWindowDisplayData* data = getData(window);
     setCurrentContext();
     updateTexture(data, data->contentTexture, surface);
     releaseCurrentContext();
+    m_contextMutex->unlock();
 }
 
 void OpenGLDisplay::updateFrame(Window* window)
@@ -164,6 +179,7 @@ void OpenGLDisplay::updateFrame(Window* window)
     {
         return;
     }
+    m_contextMutex->lock();
     setCurrentContext();
     OpenGLWindowDisplayData* data = getData(window);
     if (data->frameTexture == nullptr)
@@ -172,6 +188,7 @@ void OpenGLDisplay::updateFrame(Window* window)
     }
     updateTexture(data, data->frameTexture, window->getFrameSurface());
     releaseCurrentContext();
+    m_contextMutex->unlock();
 }
 
 OpenGLWindowDisplayData* OpenGLDisplay::getData(Window* window)
@@ -199,7 +216,7 @@ void OpenGLDisplay::updateTexture(OpenGLWindowDisplayData* data, OpenGLTexture* 
 
 void OpenGLDisplay::drawCursor(Cursor* cursor, Geek::Vector2D pos)
 {
-    glEnable(GL_BLEND);
+    //glEnable(GL_BLEND);
     if (m_cursorTexture == nullptr)
     {
         m_cursorTexture = new OpenGLTexture();
@@ -211,12 +228,12 @@ void OpenGLDisplay::drawCursor(Cursor* cursor, Geek::Vector2D pos)
     }
 
     Rect rect;
-    rect.x = pos.x;
-    rect.y = pos.y;
+    rect.x = pos.x - cursor->getHotSpot().x;
+    rect.y = pos.y - cursor->getHotSpot().y;
     rect.w = cursor->getSurface()->getWidth() / m_scale;
     rect.h = cursor->getSurface()->getHeight() / m_scale;
     m_cursorTexture->draw(rect, m_scale);
-    glDisable(GL_BLEND);
+    //glDisable(GL_BLEND);
 }
 
 OpenGLTexture::OpenGLTexture()
